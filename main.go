@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"bytes"
 	"time"
 	"encoding/json"
 	"text/template"
 	"database/sql"
+	"strings"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -31,7 +33,7 @@ type Activity struct {
 	created_at time.Time
 	Username string
 	repo GithubRepo // this isn't going to be memory efficient
-	Meta Payload // full payload of json object
+	Meta string // full payload of json object
 }
 
 type PushPayload struct {
@@ -47,21 +49,37 @@ type PushMeta struct {
 type Commit struct {
 	Sha string
 	Message string
-	Author string `json:"author.name"` // name
+	Author struct {
+		Name string
+		Email string
+	}
 }
 
-type ActivityTemplateInput struct {
-	Repo GithubRepo
-	Input map[string][]Activity
+func (c *Commit) ShortSha() string {
+	return c.Sha[0:6]
 }
 
-const activity_template = `
-Repo: {{.Repo.User}}/{{.Repo.RepoName}}
-{{ range .Input.P }}
-  Push by {{ .Username }} -- {{range .Meta.Commits}}{{.Sha}}{{ end }}
+func (c *Commit) ShortCommit() string {
+	msg := strings.Split(c.Message, "\n")[0]
+	if len(msg) > 80 {
+		return msg[0:77] + "..."
+	}
+	return msg
+}
+
+type ActivityPush struct {
+	Pushes []PushMeta
+	TotalCommits int
+}
+
+const long_push_template = `
+{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
+{{ end }}
 {{ end }}`
 
-const activity_entry = `activity entry
+const short_push_template = `
+{{ .TotalCommits }} commits. 
+{{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
 `
 
 // get user's followed users
@@ -144,31 +162,46 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 			return nil, err
 		}
 
-		// deserialize
-		var payload Payload
-		if (activity_type == "P") {
-				var intermediate PushPayload
-			err = json.Unmarshal([]byte(meta), &intermediate)
-			// fmt.Println("Payload: ", payload)
-			// var pushMeta PushMeta
-			// err := json.Unmarshal([]byte(meta), &pushMeta)
-			// if (err != nil) {
-			// 	fmt.Println("Unable to decode push event: ", err)
-			// }
-			fmt.Println("Got a: ", payload, " from a: ", meta)
-				payload = intermediate
-			// payload = pushMeta
-		}
-		
 		activity_list = append(activity_list, 
 			Activity{pk, github_id, activity_type, created_at, username,
-			GithubRepo{repo_id, repo_user, repo_project}, payload})
+			GithubRepo{repo_id, repo_user, repo_project}, meta})
 	}
 	
 	return
 }
 
-func repo_to_template(repo GithubRepo, activities []Activity) string {
+// Handles taking a list of Push-type activities and returning a formatted template
+func push_render(activities []Activity, long_template bool) string {
+	var metas = make([]PushMeta, len(activities))
+	var total_commits = 0
+	for i, activity := range activities {
+		var payload PushPayload
+		err :=json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil { fmt.Println("Error decoding meta: ", err) }
+
+		metas[i] = payload.Payload
+		total_commits += len(payload.Payload.Commits)
+	}
+	
+	template_input := ActivityPush{metas, total_commits}
+	tmpl := template.New("ActivityFragment")
+
+	if long_template {
+		_, err := tmpl.Parse(long_push_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	} else {
+		_, err := tmpl.Parse(short_push_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	}
+	
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, template_input)
+	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	return b.String()
+}
+
+
+func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]interface{}) string {
 	var activity_map = make(map[string][]Activity)
 	for _, activity := range activities {
 		// This seems like a lot of juggling. Is there a better way?
@@ -182,20 +215,19 @@ func repo_to_template(repo GithubRepo, activities []Activity) string {
 	}
 
 	// activity_map: activity_type => []activity
-
-	template_input := ActivityTemplateInput{repo, activity_map}
-
-	tmpl, err := template.New("ActivityFragment").Parse(activity_template)
-	if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	err = tmpl.Execute(os.Stdout, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	return ""
+	var response = ""
+	for activity_type, activities := range activity_map {
+		_, known_renderer := render_map[activity_type]
+		if known_renderer {
+			response += render_map[activity_type].(func([]Activity, bool) string)(activities, true)
+		} else {
+			fmt.Println("Not sure how to render activites of type ", activity_type)
+		}
+	}
+	return response
 }
 
 func main() {
-	fmt.Println("DB User: ", os.Getenv("DB_USER"))
-	fmt.Println("DB Database: ", os.Getenv("DB_DB"))
-	
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
 	if (err != nil) {
 		fmt.Println("Unable to connect to mysql. ", err)
@@ -212,11 +244,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	activity_type_to_renderer := map[string]interface{} {
+		"P": push_render,
+	}
+
+
 	// build map of repo -> activities
 	// go routine w/ channel of activities, 
 	//   throw down activities on per-repo basis
 	//   collect them when done and collate.
-	repo_to_template(repo, activities)
+	response := repo_to_template(repo, activities, activity_type_to_renderer)
+	fmt.Println(response)
 
 	return
 }
