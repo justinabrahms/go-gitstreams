@@ -16,15 +16,25 @@ type User struct {
 	username string
 }
 
-type GithubRepo struct {
-	pk int
-	User string
-	RepoName string
+type GithubUser struct {
+	Id int
+	Login string
+	Url string
 }
 
-// JSON thing from GitHub
-type Payload interface {}
+// db thing.
+type GithubRepo struct {
+	pk int
+	User string // should probably be Login
+	RepoName string // should probably be Name
+}
 
+type GithubApiRepo struct {
+	Id int
+	Owner GithubUser
+	Name string
+	Description string
+}
 
 type Activity struct {
 	id int
@@ -34,6 +44,48 @@ type Activity struct {
 	Username string
 	repo GithubRepo // this isn't going to be memory efficient
 	Meta string // full payload of json object
+}
+
+type Treeish struct {
+	Label string
+	Sha string
+	Repo GithubApiRepo
+	Html_url string
+	User GithubUser
+}
+
+type PullRequestPayload struct {
+	Payload PullRequestMeta
+}
+
+type PullRequestMeta struct {
+	Number int
+	Action string
+	Pull_request PullRequest
+}
+
+type PullRequest struct {
+	Number int
+	State string // enum?
+	Title string
+	Body string
+	Head Treeish
+	Base Treeish
+
+	// These are in the PR, but aren't any reasons to capture it.
+	
+	// Merged_by GithubUser
+
+	// Created_at time.Time
+	// Updated_at time.Time
+	// Closed_at time.Time
+	// Merged_at time.Time
+
+	// Comments int
+	// Commits int
+	// Additions int
+	// Deletions int
+	// Changed_files int
 }
 
 type PushPayload struct {
@@ -81,6 +133,21 @@ const short_push_template = `
 {{ .TotalCommits }} commits. 
 {{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
 `
+
+type ActivityPullRequest struct {
+	PullRequests map[int]PullRequest // number -> pull request
+}
+
+const long_pr_template = `
+{{range $num, $pr := .PullRequests}}
+    {{.Number}} {{.Head.User.Login}} -- {{.Title}}
+{{end}}
+`
+const short_pr_template = `
+{{len .PullRequests}} pull requests.
+{{range $num, $pr := .PullRequests}}{{$num}}{{end}}
+`
+
 
 // get user's followed users
 // get user's followed repos
@@ -170,6 +237,34 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
+func pull_request_render(activities []Activity, long_template bool) string {
+	var metas = make(map[int]PullRequest, len(activities))
+	for _, activity := range activities {
+		var payload PullRequestPayload
+		err :=json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil { fmt.Println("Error decoding meta: ", err) }
+
+		metas[payload.Payload.Number] = payload.Payload.Pull_request
+	}
+
+	template_input := ActivityPullRequest{metas}
+	tmpl := template.New("PullRequestFragment")
+
+	if long_template {
+		_, err := tmpl.Parse(long_pr_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	} else {
+		_, err := tmpl.Parse(short_pr_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	}
+	
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, template_input)
+	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	
+	return b.String()
+}
+
 // Handles taking a list of Push-type activities and returning a formatted template
 func push_render(activities []Activity, long_template bool) string {
 	var metas = make([]PushMeta, len(activities))
@@ -246,8 +341,8 @@ func main() {
 
 	activity_type_to_renderer := map[string]interface{} {
 		"P": push_render,
+		"PR": pull_request_render,
 	}
-
 
 	// build map of repo -> activities
 	// go routine w/ channel of activities, 
