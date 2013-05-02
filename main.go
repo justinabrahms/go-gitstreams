@@ -167,7 +167,6 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
-func issue_render(activities []Activity, long_template bool) string { return "" }
 func gist_render(activities []Activity, long_template bool) string { return "" }
 func follow_render(activities []Activity, long_template bool) string { return "" }
 func commit_comment_render(activities []Activity, long_template bool) string { return "" }
@@ -196,7 +195,7 @@ func repo_to_template(repo GithubRepo, activities []Activity, render_map map[str
 	for activity_type, activities := range activity_map {
 		fn, ok := render_map[activity_type]
 		if ok {
-			response += fn(activities, true)
+			response += fn(activities, false)
 		} else {
 			fmt.Println("Not sure how to render activites of type ", activity_type)
 		}
@@ -233,6 +232,7 @@ func main() {
 		"F": fork_render,
 		"IC": issue_comment_render,
 		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
+		"I": issue_render,
 	}
 
 	// build map of repo -> activities

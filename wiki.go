@@ -33,7 +33,7 @@ const long_wiki_template = `{{ range .Wikis }}{{ .Actor.Login }} {{ range $i, $p
 {{end}}
 `
 
-const short_wiki_template = `{{ with .Paylaod }}Updated pages: {{range $index, $wiki := .Wikis}}{{range $wiki.Pages}}{{if $index}}, {{end}}{{ .Title }}{{end}}{{end}}{{end}}
+const short_wiki_template = `{{ range .Wikis }}{{with .Payload}}Updated pages: {{range $index, $page := .Pages}}{{if $index}}, {{end}}{{ $page.Title }}{{end}}{{end}}{{end}}
 `
 
 

@@ -26,17 +26,10 @@ func (c Comment) ShortBody() string {
 	return msg
 }
 
-type Issue struct {
-	State string // enum?
-	Title string
-	Body string
-	Number int
-}
-
 type IssueCommentPayload struct {
 	Payload struct {
 		Action string
-		Issue Issue
+		Issue Issue // in issue.go
 		Comment Comment
 	}
 }
