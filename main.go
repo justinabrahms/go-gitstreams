@@ -167,15 +167,14 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
-func gist_render(activities []Activity, long_template bool) string { return "" }
-func follow_render(activities []Activity, long_template bool) string { return "" }
 func commit_comment_render(activities []Activity, long_template bool) string { return "" }
 func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
 func member_render(activities []Activity, long_template bool) string { return "" }
-func public_render(activities []Activity, long_template bool) string { return "" }
 func download_render(activities []Activity, long_template bool) string { return "" }
 func fork_apply_render(activities []Activity, long_template bool) string { return "" }
 func team_add_render(activities []Activity, long_template bool) string { return "" }
+func gist_render(activities []Activity, long_template bool) string { return "" }
+func follow_render(activities []Activity, long_template bool) string { return "" }
 
 func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool)string) string {
 	var activity_map = make(map[string][]Activity)
@@ -233,6 +232,7 @@ func main() {
 		"IC": issue_comment_render,
 		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
 		"I": issue_render,
+		"Pb": public_render,
 	}
 
 	// build map of repo -> activities
