@@ -90,13 +90,11 @@ type PushMeta struct {
 	Head string // head SHA
 }
 
-const long_push_template = `
-{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
+const long_push_template = `{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
 {{ end }}
 {{ end }}`
 
-const short_push_template = `
-{{ .TotalCommits }} commits. 
+const short_push_template = `{{ .TotalCommits }} commits. 
 {{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
 `
 
@@ -113,8 +111,7 @@ type DeleteMeta struct {
 	Ref string
 }
 
-const long_delete_template = `
-{{range .Deleted}}    Deleted {{.Ref_type}} {{.Ref}}{{end}}
+const long_delete_template = `{{range .Deleted}}    Deleted {{.Ref_type}} {{.Ref}}{{end}}
 `
 const short_delete_template = `{{len .Deleted}} deleted branches/refs.`
 
@@ -157,14 +154,12 @@ type PullRequest struct {
 	// Changed_files int
 }
 
-const long_pr_template = `
-{{range $num, $pr := .PullRequests}}
+const long_pr_template = `{{range $num, $pr := .PullRequests}}
     PR:{{.Number}} {{.Head.User.Login}} -- {{.Title}}
 {{end}}
 `
 
-const short_pr_template = `
-{{len .PullRequests}} pull requests.
+const short_pr_template = `{{len .PullRequests}} pull requests.
 {{range $num, $pr := .PullRequests}}{{$num}}{{end}}
 `
 
