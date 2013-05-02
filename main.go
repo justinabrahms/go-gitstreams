@@ -296,7 +296,7 @@ func push_render(activities []Activity, long_template bool) string {
 }
 
 
-func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]interface{}) string {
+func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool)string) string {
 	var activity_map = make(map[string][]Activity)
 	for _, activity := range activities {
 		// This seems like a lot of juggling. Is there a better way?
@@ -312,9 +312,9 @@ func repo_to_template(repo GithubRepo, activities []Activity, render_map map[str
 	// activity_map: activity_type => []activity
 	var response = ""
 	for activity_type, activities := range activity_map {
-		_, known_renderer := render_map[activity_type]
-		if known_renderer {
-			response += render_map[activity_type].(func([]Activity, bool) string)(activities, true)
+		fn, ok := render_map[activity_type]
+		if ok {
+			response += fn(activities, true)
 		} else {
 			fmt.Println("Not sure how to render activites of type ", activity_type)
 		}
@@ -339,7 +339,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	activity_type_to_renderer := map[string]interface{} {
+	activity_type_to_renderer := map[string]func([]Activity, bool)string {
 		"P": push_render,
 		"PR": pull_request_render,
 	}
