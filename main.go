@@ -54,6 +54,75 @@ type Treeish struct {
 	User GithubUser
 }
 
+type Commit struct {
+	Sha string
+	Message string
+	Author struct {
+		Name string
+		Email string
+	}
+}
+
+func (c *Commit) ShortSha() string {
+	return c.Sha[0:6]
+}
+
+func (c *Commit) ShortCommit() string {
+	msg := strings.Split(c.Message, "\n")[0]
+	if len(msg) > 80 {
+		return msg[0:77] + "..."
+	}
+	return msg
+}
+
+type ActivityPush struct {
+	Pushes []PushMeta
+	TotalCommits int
+}
+
+type PushPayload struct {
+	 Payload PushMeta
+}
+
+type PushMeta struct {
+	Commits []Commit
+	Ref string // eg refs/heads/master
+	Head string // head SHA
+}
+
+const long_push_template = `
+{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
+{{ end }}
+{{ end }}`
+
+const short_push_template = `
+{{ .TotalCommits }} commits. 
+{{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
+`
+
+type ActivityDelete struct {
+	Deleted []DeleteMeta
+}
+
+type DeletePayload struct {
+	Payload DeleteMeta
+}
+
+type DeleteMeta struct {
+	Ref_type string
+	Ref string
+}
+
+const long_delete_template = `
+{{range .Deleted}}    Deleted {{.Ref_type}} {{.Ref}}{{end}}
+`
+const short_delete_template = `{{len .Deleted}} deleted branches/refs.`
+
+
+type ActivityPullRequest struct {
+	PullRequests map[int]PullRequest // number -> pull request
+}
+
 type PullRequestPayload struct {
 	Payload PullRequestMeta
 }
@@ -88,64 +157,62 @@ type PullRequest struct {
 	// Changed_files int
 }
 
-type PushPayload struct {
-	 Payload PushMeta
-}
-
-type PushMeta struct {
-	Commits []Commit
-	Ref string // eg refs/heads/master
-	Head string // head SHA
-}
-
-type Commit struct {
-	Sha string
-	Message string
-	Author struct {
-		Name string
-		Email string
-	}
-}
-
-func (c *Commit) ShortSha() string {
-	return c.Sha[0:6]
-}
-
-func (c *Commit) ShortCommit() string {
-	msg := strings.Split(c.Message, "\n")[0]
-	if len(msg) > 80 {
-		return msg[0:77] + "..."
-	}
-	return msg
-}
-
-type ActivityPush struct {
-	Pushes []PushMeta
-	TotalCommits int
-}
-
-const long_push_template = `
-{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
-{{ end }}
-{{ end }}`
-
-const short_push_template = `
-{{ .TotalCommits }} commits. 
-{{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
-`
-
-type ActivityPullRequest struct {
-	PullRequests map[int]PullRequest // number -> pull request
-}
-
 const long_pr_template = `
 {{range $num, $pr := .PullRequests}}
-    {{.Number}} {{.Head.User.Login}} -- {{.Title}}
+    PR:{{.Number}} {{.Head.User.Login}} -- {{.Title}}
 {{end}}
 `
+
 const short_pr_template = `
 {{len .PullRequests}} pull requests.
 {{range $num, $pr := .PullRequests}}{{$num}}{{end}}
+`
+
+type CreatePayload struct {
+	Payload CreateMeta
+}
+
+type CreateMeta struct {
+	Ref_type string
+	Ref string
+	Master_branch string
+	Description string
+}
+
+type ActivityCreate struct {
+	Created []CreateMeta
+}
+
+const long_create_template = `
+{{range .Created}}    Created {{.Ref_type}} {{.Ref}}
+{{end}}
+`
+
+const short_create_template = `
+    Created {{len .Created}} branches/refs.
+`
+
+type WatchPayload struct {
+	Actor GithubUser
+	Repo GithubApiRepo
+	Payload WatchMeta
+}
+
+type WatchMeta struct {
+	Action string
+}
+
+type ActivityWatch struct {
+	Watched []WatchPayload
+}
+
+const long_watch_template = `
+{{range .Watched}}    {{.Actor.Login}} {{.Payload.Action}} watching {{.Repo.Name}}
+{{end}}
+`
+
+const short_watch_template = `
+    {{len .Watched}} watch events.
 `
 
 
@@ -198,6 +265,7 @@ func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	return repos, err
 }
 
+
 func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error){
 	rows, err := db.Query(
 		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta FROM streamer_activity a" +
@@ -243,7 +311,6 @@ func pull_request_render(activities []Activity, long_template bool) string {
 		var payload PullRequestPayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
 		if err != nil { fmt.Println("Error decoding meta: ", err) }
-
 		metas[payload.Payload.Number] = payload.Payload.Pull_request
 	}
 
@@ -258,12 +325,107 @@ func pull_request_render(activities []Activity, long_template bool) string {
 		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
 	}
 	
+
 	var b bytes.Buffer
 	err := tmpl.Execute(&b, template_input)
 	if err != nil { fmt.Println("Error with activity rendering. ", err) }
 	
 	return b.String()
 }
+
+func delete_render(activities []Activity, long_template bool) string { 
+	var metas = make([]DeleteMeta, len(activities))
+	for i, activity := range activities {
+		var payload DeletePayload
+		err :=json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil { fmt.Println("Error decoding meta: ", err) }
+
+		metas[i] = payload.Payload
+	}
+	
+	template_input := ActivityDelete{metas}
+	tmpl := template.New("DeleteFragment")
+
+	if long_template {
+		_, err := tmpl.Parse(long_delete_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	} else {
+		_, err := tmpl.Parse(short_delete_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	}
+	
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, template_input)
+	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	return b.String()
+}
+
+func create_render(activities []Activity, long_template bool) string {
+	var metas = make([]CreateMeta, len(activities))
+	for i, activity := range activities {
+		var payload CreatePayload
+		err :=json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil { fmt.Println("Error decoding meta: ", err) }
+
+		metas[i] = payload.Payload
+	}
+	
+	template_input := ActivityCreate{metas}
+	tmpl := template.New("CreateFragment")
+
+	if long_template {
+		_, err := tmpl.Parse(long_create_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	} else {
+		_, err := tmpl.Parse(short_create_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	}
+	
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, template_input)
+	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	return b.String()
+}
+
+func watch_render(activities []Activity, long_template bool) string {
+	var metas = make([]WatchPayload, len(activities))
+	for i, activity := range activities {
+		var payload WatchPayload
+		err :=json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		metas[i] = payload
+	}
+	
+	template_input := ActivityWatch{metas}
+	tmpl := template.New("WatchFragment")
+
+	if long_template {
+		_, err := tmpl.Parse(long_watch_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	} else {
+		_, err := tmpl.Parse(short_watch_template)
+		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+	}
+	
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, template_input)
+	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	return b.String()
+}
+
+func issue_comment_render(activities []Activity, long_template bool) string { return "" }
+func fork_render(activities []Activity, long_template bool) string { return "" }
+func issue_render(activities []Activity, long_template bool) string { return "" }
+func gist_render(activities []Activity, long_template bool) string { return "" }
+func follow_render(activities []Activity, long_template bool) string { return "" }
+func commit_comment_render(activities []Activity, long_template bool) string { return "" }
+func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
+func wiki_render(activities []Activity, long_template bool) string { return "" }
+func member_render(activities []Activity, long_template bool) string { return "" }
+func public_render(activities []Activity, long_template bool) string { return "" }
+func download_render(activities []Activity, long_template bool) string { return "" }
+func fork_apply_render(activities []Activity, long_template bool) string { return "" }
+func team_add_render(activities []Activity, long_template bool) string { return "" }
 
 // Handles taking a list of Push-type activities and returning a formatted template
 func push_render(activities []Activity, long_template bool) string {
@@ -294,7 +456,6 @@ func push_render(activities []Activity, long_template bool) string {
 	if err != nil { fmt.Println("Error with activity rendering. ", err) }
 	return b.String()
 }
-
 
 func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool)string) string {
 	var activity_map = make(map[string][]Activity)
@@ -332,7 +493,7 @@ func main() {
 
 	// var user_id = 1;
 	// repos, err := get_users_repos(db, user_id)
-	repo := GithubRepo{43563, "exitio", "schematics"}
+	repo := GithubRepo{43567, "", ""}
 	activities, err := get_repo_activity(db, &repo)
 	if (err != nil) {
 		fmt.Println("ERR: ", err)
@@ -342,6 +503,9 @@ func main() {
 	activity_type_to_renderer := map[string]func([]Activity, bool)string {
 		"P": push_render,
 		"PR": pull_request_render,
+		"D": delete_render,
+		"C": create_render,
+		"W": watch_render,
 	}
 
 	// build map of repo -> activities
