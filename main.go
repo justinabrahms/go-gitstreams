@@ -3,13 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"bytes"
 	"time"
-	"encoding/json"
-	"text/template"
 	"database/sql"
 	"strings"
 	_ "github.com/go-sql-driver/mysql"
+	"flag"
 )
 
 type User struct {
@@ -36,8 +34,12 @@ type GithubApiRepo struct {
 	Description string
 }
 
+func (g *GithubApiRepo) FullName() string {
+	return fmt.Sprintf("%s/%s", g.Owner.Login, g.Name)
+}
+
 type Activity struct {
-	id int
+	Id int
 	github_id int
 	activity_type string // should be enum
 	created_at time.Time
@@ -74,141 +76,6 @@ func (c *Commit) ShortCommit() string {
 	}
 	return msg
 }
-
-type ActivityPush struct {
-	Pushes []PushMeta
-	TotalCommits int
-}
-
-type PushPayload struct {
-	 Payload PushMeta
-}
-
-type PushMeta struct {
-	Commits []Commit
-	Ref string // eg refs/heads/master
-	Head string // head SHA
-}
-
-const long_push_template = `{{ range .Pushes }}{{range .Commits}}    {{.ShortSha}} {{ .Author.Name }} -- {{ .ShortCommit }}
-{{ end }}
-{{ end }}`
-
-const short_push_template = `{{ .TotalCommits }} commits. 
-{{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
-`
-
-type ActivityDelete struct {
-	Deleted []DeleteMeta
-}
-
-type DeletePayload struct {
-	Payload DeleteMeta
-}
-
-type DeleteMeta struct {
-	Ref_type string
-	Ref string
-}
-
-const long_delete_template = `{{range .Deleted}}    Deleted {{.Ref_type}} {{.Ref}}{{end}}
-`
-const short_delete_template = `{{len .Deleted}} deleted branches/refs.`
-
-
-type ActivityPullRequest struct {
-	PullRequests map[int]PullRequest // number -> pull request
-}
-
-type PullRequestPayload struct {
-	Payload PullRequestMeta
-}
-
-type PullRequestMeta struct {
-	Number int
-	Action string
-	Pull_request PullRequest
-}
-
-type PullRequest struct {
-	Number int
-	State string // enum?
-	Title string
-	Body string
-	Head Treeish
-	Base Treeish
-
-	// These are in the PR, but aren't any reasons to capture it.
-	
-	// Merged_by GithubUser
-
-	// Created_at time.Time
-	// Updated_at time.Time
-	// Closed_at time.Time
-	// Merged_at time.Time
-
-	// Comments int
-	// Commits int
-	// Additions int
-	// Deletions int
-	// Changed_files int
-}
-
-const long_pr_template = `{{range $num, $pr := .PullRequests}}
-    PR:{{.Number}} {{.Head.User.Login}} -- {{.Title}}
-{{end}}
-`
-
-const short_pr_template = `{{len .PullRequests}} pull requests.
-{{range $num, $pr := .PullRequests}}{{$num}}{{end}}
-`
-
-type CreatePayload struct {
-	Payload CreateMeta
-}
-
-type CreateMeta struct {
-	Ref_type string
-	Ref string
-	Master_branch string
-	Description string
-}
-
-type ActivityCreate struct {
-	Created []CreateMeta
-}
-
-const long_create_template = `
-{{range .Created}}    Created {{.Ref_type}} {{.Ref}}
-{{end}}
-`
-
-const short_create_template = `
-    Created {{len .Created}} branches/refs.
-`
-
-type WatchPayload struct {
-	Actor GithubUser
-	Repo GithubApiRepo
-	Payload WatchMeta
-}
-
-type WatchMeta struct {
-	Action string
-}
-
-type ActivityWatch struct {
-	Watched []WatchPayload
-}
-
-const long_watch_template = `
-{{range .Watched}}    {{.Actor.Login}} {{.Payload.Action}} watching {{.Repo.Name}}
-{{end}}
-`
-
-const short_watch_template = `
-    {{len .Watched}} watch events.
-`
 
 
 // get user's followed users
@@ -300,157 +167,16 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
-func pull_request_render(activities []Activity, long_template bool) string {
-	var metas = make(map[int]PullRequest, len(activities))
-	for _, activity := range activities {
-		var payload PullRequestPayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
-		metas[payload.Payload.Number] = payload.Payload.Pull_request
-	}
-
-	template_input := ActivityPullRequest{metas}
-	tmpl := template.New("PullRequestFragment")
-
-	if long_template {
-		_, err := tmpl.Parse(long_pr_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	} else {
-		_, err := tmpl.Parse(short_pr_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	}
-	
-
-	var b bytes.Buffer
-	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	
-	return b.String()
-}
-
-func delete_render(activities []Activity, long_template bool) string { 
-	var metas = make([]DeleteMeta, len(activities))
-	for i, activity := range activities {
-		var payload DeletePayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
-
-		metas[i] = payload.Payload
-	}
-	
-	template_input := ActivityDelete{metas}
-	tmpl := template.New("DeleteFragment")
-
-	if long_template {
-		_, err := tmpl.Parse(long_delete_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	} else {
-		_, err := tmpl.Parse(short_delete_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	}
-	
-	var b bytes.Buffer
-	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	return b.String()
-}
-
-func create_render(activities []Activity, long_template bool) string {
-	var metas = make([]CreateMeta, len(activities))
-	for i, activity := range activities {
-		var payload CreatePayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
-
-		metas[i] = payload.Payload
-	}
-	
-	template_input := ActivityCreate{metas}
-	tmpl := template.New("CreateFragment")
-
-	if long_template {
-		_, err := tmpl.Parse(long_create_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	} else {
-		_, err := tmpl.Parse(short_create_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	}
-	
-	var b bytes.Buffer
-	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	return b.String()
-}
-
-func watch_render(activities []Activity, long_template bool) string {
-	var metas = make([]WatchPayload, len(activities))
-	for i, activity := range activities {
-		var payload WatchPayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
-		metas[i] = payload
-	}
-	
-	template_input := ActivityWatch{metas}
-	tmpl := template.New("WatchFragment")
-
-	if long_template {
-		_, err := tmpl.Parse(long_watch_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	} else {
-		_, err := tmpl.Parse(short_watch_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	}
-	
-	var b bytes.Buffer
-	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	return b.String()
-}
-
-func issue_comment_render(activities []Activity, long_template bool) string { return "" }
-func fork_render(activities []Activity, long_template bool) string { return "" }
 func issue_render(activities []Activity, long_template bool) string { return "" }
 func gist_render(activities []Activity, long_template bool) string { return "" }
 func follow_render(activities []Activity, long_template bool) string { return "" }
 func commit_comment_render(activities []Activity, long_template bool) string { return "" }
 func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
-func wiki_render(activities []Activity, long_template bool) string { return "" }
 func member_render(activities []Activity, long_template bool) string { return "" }
 func public_render(activities []Activity, long_template bool) string { return "" }
 func download_render(activities []Activity, long_template bool) string { return "" }
 func fork_apply_render(activities []Activity, long_template bool) string { return "" }
 func team_add_render(activities []Activity, long_template bool) string { return "" }
-
-// Handles taking a list of Push-type activities and returning a formatted template
-func push_render(activities []Activity, long_template bool) string {
-	var metas = make([]PushMeta, len(activities))
-	var total_commits = 0
-	for i, activity := range activities {
-		var payload PushPayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
-
-		metas[i] = payload.Payload
-		total_commits += len(payload.Payload.Commits)
-	}
-	
-	template_input := ActivityPush{metas, total_commits}
-	tmpl := template.New("ActivityFragment")
-
-	if long_template {
-		_, err := tmpl.Parse(long_push_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	} else {
-		_, err := tmpl.Parse(short_push_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
-	}
-	
-	var b bytes.Buffer
-	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	return b.String()
-}
 
 func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool)string) string {
 	var activity_map = make(map[string][]Activity)
@@ -478,7 +204,10 @@ func repo_to_template(repo GithubRepo, activities []Activity, render_map map[str
 	return response
 }
 
+var repo_id = flag.Int("repo_id", 43567, "ID of github repo to dump.")
+
 func main() {
+	flag.Parse()
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
 	if (err != nil) {
 		fmt.Println("Unable to connect to mysql. ", err)
@@ -488,7 +217,7 @@ func main() {
 
 	// var user_id = 1;
 	// repos, err := get_users_repos(db, user_id)
-	repo := GithubRepo{43567, "", ""}
+	repo := GithubRepo{*repo_id, "", ""}
 	activities, err := get_repo_activity(db, &repo)
 	if (err != nil) {
 		fmt.Println("ERR: ", err)
@@ -501,6 +230,9 @@ func main() {
 		"D": delete_render,
 		"C": create_render,
 		"W": watch_render,
+		"F": fork_render,
+		"IC": issue_comment_render,
+		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
 	}
 
 	// build map of repo -> activities
