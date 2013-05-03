@@ -153,6 +153,7 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 		" JOIN streamer_githubuser ghu on ghu.id=a.user_id" +
 		" JOIN streamer_userprofile_repos upr on r.id=upr.repo_id" +
 		" WHERE r.id = ?" +
+		" AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day)" + // don't send things more than a few days old. Think, new users who subscribe to rails/rails
 		" AND (upr.last_sent is null" + // hasn't been sent at all
 		"   OR a.created_at > upr.last_sent)",  // or hasn't been sent since we've gotten new stuff
 		repo.Id)
@@ -279,7 +280,6 @@ var user_id = flag.Int("user_id", 1, "ID of user to output.")
 
 // TODO: Github Users
 // TODO: Email people
-// TODO: Limit information by time (past day or w/e)
 
 func main() {
 	flag.Parse()
