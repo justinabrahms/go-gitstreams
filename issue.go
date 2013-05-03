@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"fmt"
 	"encoding/json"
 	"bytes"
@@ -15,7 +16,7 @@ type ActivityIssue struct {
 type Issue struct {
 	State string // enum?
 	Title string
-	Body string
+	Body NString
 	Number int
 }
 
@@ -42,7 +43,7 @@ func issue_render(activities []Activity, long_template bool) string {
 	for i, activity := range activities {
 		var payload IssuePayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		if err != nil { log.Print("Error decoding Issue meta for pk:%d: ", activity.Id, err) }
 		metas[i] = payload
 	}
 

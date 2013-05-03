@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"encoding/json"
 	"text/template"
+	"log"
 	"bytes"
-	)
+)
 
 
 type ActivityDelete struct {
@@ -32,7 +33,7 @@ func delete_render(activities []Activity, long_template bool) string {
 	for i, activity := range activities {
 		var payload DeletePayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		if err != nil { log.Print("Error decoding delete meta for pk:%s: %s", activity.Id, err) }
 
 		metas[i] = payload.Payload
 	}

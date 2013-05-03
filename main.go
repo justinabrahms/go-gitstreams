@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 	"database/sql"
@@ -27,11 +29,15 @@ type GithubRepo struct {
 	RepoName string // should probably be Name
 }
 
+func (g *GithubRepo) FullName() string {
+	return fmt.Sprintf("%s/%s", g.User, g.RepoName)
+}
+
 type GithubApiRepo struct {
 	Id int
 	Owner GithubUser
-	Name string
-	Description string
+	Name NString
+	Description NString
 }
 
 func (g *GithubApiRepo) FullName() string {
@@ -75,6 +81,16 @@ func (c *Commit) ShortCommit() string {
 		return msg[0:77] + "..."
 	}
 	return msg
+}
+
+// Nullable String
+type NString string
+
+func (n *NString) UnmarshalJSON(b []byte) (err error) {
+	if string(b) == "null" {
+		return nil
+	}
+	return json.Unmarshal(b, (*string)(n))
 }
 
 
@@ -127,10 +143,10 @@ func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	return repos, err
 }
 
-
 func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error){
 	rows, err := db.Query(
-		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta FROM streamer_activity a" +
+		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta" +
+		" FROM streamer_activity a" +
 		" JOIN streamer_repo r on r.id=a.repo_id" +
 		" JOIN streamer_githubuser ghu on ghu.id=a.user_id" +
 		" WHERE repo_id = ?", repo.pk)
@@ -190,32 +206,19 @@ func repo_to_template(repo GithubRepo, activities []Activity, render_map map[str
 	}
 
 	// activity_map: activity_type => []activity
-	var response = ""
+	var response = fmt.Sprintf("%s:\n", repo.FullName())
 	for activity_type, activities := range activity_map {
 		fn, ok := render_map[activity_type]
 		if ok {
-			response += fn(activities, false)
+			response += fn(activities, true)
 		} else {
-			fmt.Println("Not sure how to render activites of type ", activity_type)
+			log.Print("Not sure how to render activites of type ", activity_type)
 		}
 	}
 	return response
 }
 
-var repo_id = flag.Int("repo_id", 43567, "ID of github repo to dump.")
-
-func main() {
-	flag.Parse()
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
-	if (err != nil) {
-		fmt.Println("Unable to connect to mysql. ", err)
-		os.Exit(1)
-	}
-	defer db.Close()
-
-	// var user_id = 1;
-	// repos, err := get_users_repos(db, user_id)
-	repo := GithubRepo{*repo_id, "", ""}
+func repo_to_string(db *sql.DB, repo GithubRepo, response chan string) {
 	activities, err := get_repo_activity(db, &repo)
 	if (err != nil) {
 		fmt.Println("ERR: ", err)
@@ -233,14 +236,58 @@ func main() {
 		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
 		"I": issue_render,
 		"Pb": public_render,
+		// TODO: TA (team add), FA (fork apply),
+		// TODO: DO (Download), RC (Pull Request Review Comment),
+		// TODO: Fl (Follow), G (Gist)
 	}
 
-	// build map of repo -> activities
-	// go routine w/ channel of activities, 
-	//   throw down activities on per-repo basis
-	//   collect them when done and collate.
-	response := repo_to_template(repo, activities, activity_type_to_renderer)
-	fmt.Println(response)
+	response <- repo_to_template(repo, activities, activity_type_to_renderer)
+}
 
+func mark_user_repo_sent(user User, repo GithubRepo) {
+	// should find the streamer_userprofile_repo row for the repo
+	// / user combo, mark its last_sent as now
+}
+
+
+var user_id = flag.Int("user_id", 1, "ID of user to output.")
+
+// TODO: Github Users
+// TODO: Email people
+// TODO: Limit information by time (past day or w/e)
+
+func main() {
+	flag.Parse()
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
+	if (err != nil) {
+		log.Fatalf("Unable to connect to mysql. ", err)
+	}
+	defer db.Close()
+
+	repos, err := get_users_repos(db, *user_id)
+	if err != nil { 
+		log.Fatalf("Error fetching user's repos. %s", err)
+	}
+
+	fmt.Println("Got ", len(repos), " repos.")
+
+	response_chan := make(chan string, len(repos))
+	for _, repo := range repos {
+		repo_to_string(db, repo, response_chan)
+	}
+
+	var response string
+	for num_responses := 0; num_responses < len(repos); {
+		select {
+		case r := <-response_chan:
+			num_responses++
+			response += r
+		}
+	}
+
+	mark_user_repo_sent(repo, user)
+
+	fmt.Println(response)
 	return
 }

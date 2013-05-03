@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"text/template"
 	"strings"
+	"log"
 )
 
 
@@ -47,11 +48,10 @@ func issue_comment_render(activities []Activity, long_template bool) string {
 	for _, activity := range activities {
 		var payload IssueCommentPayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		if err != nil { log.Print("Error decoding issue comment meta for pk:%s: %s", activity.Id, err) }
 
 		if payload.Payload.Issue.Number < 1 {
-			// @@@ Should be a log.Warning
-			fmt.Println("Malformed Issue Comment Payload: %s", activity.Meta)
+			log.Print("Malformed Issue Comment Payload: %s", activity.Meta)
 			continue
 		}
 		

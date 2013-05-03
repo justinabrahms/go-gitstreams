@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"bytes"
 	"text/template"
+	"log"
 )
 
 type CreatePayload struct {
@@ -13,9 +14,9 @@ type CreatePayload struct {
 
 type CreateMeta struct {
 	Ref_type string
-	Ref string
+	Ref NString
 	Master_branch string
-	Description string
+	Description NString
 }
 
 type ActivityCreate struct {
@@ -36,7 +37,7 @@ func create_render(activities []Activity, long_template bool) string {
 	for i, activity := range activities {
 		var payload CreatePayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		if err != nil { log.Printf("Error decoding Create meta for pk:%s: %s", activity.Id, err) }
 
 		metas[i] = payload.Payload
 	}

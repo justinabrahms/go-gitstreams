@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"fmt"
 	"encoding/json"
 	"bytes"
@@ -32,7 +33,7 @@ func fork_render(activities []Activity, long_template bool) string {
 	for i, activity := range activities {
 		var payload ForkPayload
 		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		if err != nil { log.Print("Error decoding Fork meta for pk:%s: ", activity.Id, err) }
 
 		metas[i] = payload
 	}
