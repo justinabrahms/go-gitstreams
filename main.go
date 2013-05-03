@@ -10,9 +10,11 @@ import (
 	"strings"
 	_ "github.com/go-sql-driver/mysql"
 	"flag"
+	"strconv"
 )
 
 type User struct {
+	Id int
 	username string
 }
 
@@ -24,7 +26,7 @@ type GithubUser struct {
 
 // db thing.
 type GithubRepo struct {
-	pk int
+	Id int
 	User string // should probably be Login
 	RepoName string // should probably be Name
 }
@@ -149,7 +151,11 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 		" FROM streamer_activity a" +
 		" JOIN streamer_repo r on r.id=a.repo_id" +
 		" JOIN streamer_githubuser ghu on ghu.id=a.user_id" +
-		" WHERE repo_id = ?", repo.pk)
+		" JOIN streamer_userprofile_repos upr on r.id=upr.repo_id" +
+		" WHERE r.id = ?" +
+		" AND (upr.last_sent is null" + // hasn't been sent at all
+		"   OR a.created_at > upr.last_sent)",  // or hasn't been sent since we've gotten new stuff
+		repo.Id)
 	if (err != nil) {
 		return nil, err
 	}
@@ -193,6 +199,9 @@ func gist_render(activities []Activity, long_template bool) string { return "" }
 func follow_render(activities []Activity, long_template bool) string { return "" }
 
 func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool)string) string {
+	if len(activities) == 0 {
+		return ""
+	}
 	var activity_map = make(map[string][]Activity)
 	for _, activity := range activities {
 		// This seems like a lot of juggling. Is there a better way?
@@ -244,9 +253,25 @@ func repo_to_string(db *sql.DB, repo GithubRepo, response chan string) {
 	response <- repo_to_template(repo, activities, activity_type_to_renderer)
 }
 
-func mark_user_repo_sent(user User, repo GithubRepo) {
+func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) {
 	// should find the streamer_userprofile_repo row for the repo
 	// / user combo, mark its last_sent as now
+	ids := make([]string, 0)
+	for _, repo := range repos {
+		// why are they 0?
+		if repo.Id != 0 {
+			ids = append(ids, strconv.FormatInt(int64(repo.Id), 10))
+		}
+	}
+
+	// There is likely a better way to get parameterization, but
+	// it wasn't working for me with ?'s.
+	str := fmt.Sprintf(
+		"UPDATE streamer_userprofile_repos " +
+		"SET last_sent=NOW() " +
+		"WHERE repo_id IN (%s)", strings.Join(ids, ","))
+	_, err = db.Exec(str)
+	return
 }
 
 
@@ -286,7 +311,11 @@ func main() {
 		}
 	}
 
-	mark_user_repo_sent(repo, user)
+	user := User{*user_id, ""}
+	err = mark_user_repo_sent(db, user, repos)
+	if err != nil {
+		log.Fatalf("Error updating repositories as sent.")
+	}
 
 	fmt.Println(response)
 	return
