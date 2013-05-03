@@ -27,8 +27,9 @@ const long_push_template = `{{ range .Pushes }}{{range .Commits}}    {{.ShortSha
 {{ end }}
 {{ end }}`
 
-const short_push_template = `{{ .TotalCommits }} commits. 
-{{range $index, $p := .Pushes}}{{range $p.Commits}}{{if $index}}, {{end}}{{.ShortSha}}{{end}}{{end}}
+// {{$commit.ShortSha}}
+const short_push_template = `{{ .TotalCommits }} commits. {{range .Pushes}}{{range .Commits}} {{.ShortSha}} {{end}}
+{{end}}
 `
 
 func push_render(activities []Activity, long_template bool) string {

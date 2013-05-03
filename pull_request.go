@@ -52,7 +52,7 @@ const long_pr_template = `{{range $num, $pr := .PullRequests}}
 `
 
 const short_pr_template = `{{len .PullRequests}} pull requests.
-{{range $num, $pr := .PullRequests}}{{$num}}{{end}}
+{{range $num, $pr := .PullRequests}}{{$num}} {{end}}
 `
 
 func pull_request_render(activities []Activity, long_template bool) string {
