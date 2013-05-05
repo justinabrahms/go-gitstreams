@@ -1,21 +1,23 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"time"
-	"database/sql"
-	"strings"
-	_ "github.com/go-sql-driver/mysql"
-	"flag"
 	"strconv"
+	"strings"
+	"time"
+	_ "github.com/go-sql-driver/mysql"
+	mailgun "github.com/riobard/go-mailgun"
 )
 
 type User struct {
 	Id int
 	username string
+	Email string
 }
 
 type GithubUser struct {
@@ -96,14 +98,6 @@ func (n *NString) UnmarshalJSON(b []byte) (err error) {
 }
 
 
-// get user's followed users
-// get user's followed repos
-// for each ^, pull out activity (goroutine)
-//   return rendered template bits
-// join template bits
-
-
-// Does not take over ownership of db.
 func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	var repo_count int
 
@@ -145,7 +139,19 @@ func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	return repos, err
 }
 
+
+
+func get_user(db *sql.DB, uid int) (u User, err error) {
+	row := db.QueryRow(
+		"SELECT id, username, email" +
+		" FROM auth_user" +
+		" WHERE id = ?", uid)
+	err = row.Scan(&u.Id, &u.username, &u.Email)
+	return
+}
+
 func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error){
+	activity_list = make([]Activity, 0)
 	rows, err := db.Query(
 		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta" +
 		" FROM streamer_activity a" +
@@ -158,11 +164,10 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 		"   OR a.created_at > upr.last_sent)",  // or hasn't been sent since we've gotten new stuff
 		repo.Id)
 	if (err != nil) {
-		return nil, err
+		return
 	}
 	defer rows.Close()
 
-	activity_list = make([]Activity, 0)
 	
 	var (
 		pk, github_id, repo_id int
@@ -277,9 +282,10 @@ func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) 
 
 
 var user_id = flag.Int("user_id", 1, "ID of user to output.")
+var email_to = flag.String("email_to", "", "Email address of who should get the report.")
+var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
 
 // TODO: Github Users
-// TODO: Email people
 
 func main() {
 	flag.Parse()
@@ -295,8 +301,6 @@ func main() {
 		log.Fatalf("Error fetching user's repos. %s", err)
 	}
 
-	fmt.Println("Got ", len(repos), " repos.")
-
 	response_chan := make(chan string, len(repos))
 	for _, repo := range repos {
 		repo_to_string(db, repo, response_chan)
@@ -311,12 +315,39 @@ func main() {
 		}
 	}
 
-	user := User{*user_id, ""}
-	err = mark_user_repo_sent(db, user, repos)
-	if err != nil {
-		log.Fatalf("Error updating repositories as sent.")
+	// should fetch this user based on uid.
+	user, err := get_user(db, *user_id)
+	if err != nil { log.Fatalf("Couldn't return user %d. %s", *user_id, err) }
+	if *mark_read {
+		fmt.Println("Marking read.")
+		err = mark_user_repo_sent(db, user, repos)
+		if err != nil {
+			log.Fatalf("Error updating repositories as sent.")
+		}
 	}
 
-	fmt.Println(response)
+	if len(response) == 0 {
+		log.Fatal("No content to email.")
+	}
+
+	if len(*email_to) > 0 {
+		mg := mailgun.Open(os.Getenv("MAILGUN_API_KEY"))
+		e := &Email{
+			from: "justin@gitstreams.mailgun.org",
+			to: []string{user.Email},
+			subject: "Gitstreams Digest Email",
+			text: response,
+		}
+
+		id, err := mg.Send(e)
+
+		if err != nil {
+			log.Fatal("Unable to send email. ", err)
+		}
+		log.Printf("MessageId = %s for uid:%s", id, user.Id)
+	} else {
+		fmt.Println("Would have sent the following email.")
+		fmt.Println(response)
+	}
 	return
 }
