@@ -29,11 +29,11 @@ type WikiMeta struct {
 	Pages []Page
 }
 
-const long_wiki_template = `{{ range .Wikis }}{{ .Actor.Login }} {{ range $i, $page := .Payload.Pages}}{{if $i}}, {{end}}{{ $page.Action }} {{$page.Page_name}}{{end}}
+const long_wiki_template = `{{ range .Wikis }}    {{ .Actor.Login }} {{ range $i, $page := .Payload.Pages}}{{if $i}}, {{end}}{{ $page.Action }} {{$page.Page_name}}{{end}}
 {{end}}
 `
 
-const short_wiki_template = `{{ range .Wikis }}{{with .Payload}}Updated pages: {{range $index, $page := .Pages}}{{if $index}}, {{end}}{{ $page.Title }}{{end}}{{end}}{{end}}
+const short_wiki_template = `{{ range .Wikis }}{{with .Payload}}    Updated pages: {{range $index, $page := .Pages}}{{if $index}}, {{end}}{{ $page.Title }}{{end}}{{end}}{{end}}
 `
 
 

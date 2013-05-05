@@ -31,11 +31,11 @@ type IssuePayload struct {
 }
 
 
-const long_issue_template = `{{range .Issues}}{{.Actor.Login}} {{.Payload.Action}} #{{.Payload.Issue.Number}}: {{.Payload.Issue.Title}}
+const long_issue_template = `{{range .Issues}}    {{.Actor.Login}} {{.Payload.Action}} #{{.Payload.Issue.Number}}: {{.Payload.Issue.Title}}
 {{end}}
 `
 
-const short_issue_template = `{{len .Issues}} new issues: {{ range $i, $issue := .Issues }}{{if $i}}, {{end}}#{{$issue.Payload.Issue.Number}}{{end}}
+const short_issue_template = `    {{len .Issues}} new issues: {{ range $i, $issue := .Issues }}{{if $i}}, {{end}}#{{$issue.Payload.Issue.Number}}{{end}}
 `
 
 func issue_render(activities []Activity, long_template bool) string {
