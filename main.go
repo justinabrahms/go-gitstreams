@@ -87,7 +87,7 @@ func (c *Commit) ShortCommit() string {
 	return msg
 }
 
-// Nullable String
+// Nullable String, per https://groups.google.com/d/msg/golang-nuts/JOFWAqrTbUs/KZIGEPclSpwJ
 type NString string
 
 func (n *NString) UnmarshalJSON(b []byte) (err error) {
@@ -104,21 +104,24 @@ func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	// TODO(justinabrahms): Should really alter the schema such
 	// that the join from user <-> repo doesn't go through
 	// userprofiles.
-	row := db.QueryRow("SELECT count(*) FROM streamer_repo r" +
-	" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id " +
-	" JOIN streamer_userprofile up ON up.id = upr.userprofile_id" +
-	" WHERE up.user_id = ?;", user_id)
-
+	row := db.QueryRow(
+		"SELECT count(*)" +
+		" FROM streamer_repo r" +
+		" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id " +
+		" JOIN streamer_userprofile up ON up.id = upr.userprofile_id" +
+		" WHERE up.user_id = ?;", user_id)
 	err := row.Scan(&repo_count)
 	if (err != nil) {
 		return nil, err
 	}
 	var repos = make([]GithubRepo, repo_count)
 
-	rows, err := db.Query("SELECT r.id, username, project_name FROM streamer_repo r" +
-	" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id " +
-	" JOIN streamer_userprofile up ON up.id = upr.userprofile_id" +
-	" WHERE up.user_id = ?;", user_id)
+	rows, err := db.Query(
+		"SELECT r.id, username, project_name" +
+		" FROM streamer_repo r" +
+		" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id " +
+		" JOIN streamer_userprofile up ON up.id = upr.userprofile_id" +
+		" WHERE up.user_id = ?;", user_id)
 	// what's a good way to handle this not working?
 	if (err != nil) {
 		return nil, err
