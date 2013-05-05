@@ -1,2 +1,1 @@
 language: go
-env: GOPATH=$PWD:$GOPATH
