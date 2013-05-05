@@ -1,13 +1,12 @@
 package main
 
 import (
-	"log"
-	"fmt"
-	"encoding/json"
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"log"
 	"text/template"
 )
-
 
 type ActivityFork struct {
 	Forks []ForkPayload
@@ -17,7 +16,7 @@ type ForkPayload struct {
 	Payload struct {
 		Forkee GithubApiRepo
 	}
-	Repo GithubApiRepo
+	Repo  GithubApiRepo
 	Actor GithubUser
 }
 
@@ -32,26 +31,33 @@ func fork_render(activities []Activity, long_template bool) string {
 	var metas = make([]ForkPayload, len(activities))
 	for i, activity := range activities {
 		var payload ForkPayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { log.Print("Error decoding Fork meta for pk:%s: ", activity.Id, err) }
+		err := json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil {
+			log.Print("Error decoding Fork meta for pk:%s: ", activity.Id, err)
+		}
 
 		metas[i] = payload
 	}
 
-	
 	template_input := ActivityFork{metas}
 	tmpl := template.New("ForkFragment")
 
 	if long_template {
 		_, err := tmpl.Parse(long_fork_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+		if err != nil {
+			fmt.Println("Error with activity fragment parsing. ", err)
+		}
 	} else {
 		_, err := tmpl.Parse(short_fork_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+		if err != nil {
+			fmt.Println("Error with activity fragment parsing. ", err)
+		}
 	}
-	
+
 	var b bytes.Buffer
 	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
+	if err != nil {
+		fmt.Println("Error with activity rendering. ", err)
+	}
 	return b.String()
 }

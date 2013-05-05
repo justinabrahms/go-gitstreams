@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"encoding/json"
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"text/template"
 )
-
 
 type ActivityPullRequest struct {
 	PullRequests map[int]PullRequest // number -> pull request
@@ -17,21 +16,21 @@ type PullRequestPayload struct {
 }
 
 type PullRequestMeta struct {
-	Number int
-	Action string
+	Number       int
+	Action       string
 	Pull_request PullRequest
 }
 
 type PullRequest struct {
 	Number int
-	State string // enum?
-	Title string
-	Body string
-	Head Treeish
-	Base Treeish
+	State  string // enum?
+	Title  string
+	Body   string
+	Head   Treeish
+	Base   Treeish
 
 	// These are in the PR, but aren't any reasons to capture it.
-	
+
 	// Merged_by GithubUser
 
 	// Created_at time.Time
@@ -59,8 +58,10 @@ func pull_request_render(activities []Activity, long_template bool) string {
 	var metas = make(map[int]PullRequest, len(activities))
 	for _, activity := range activities {
 		var payload PullRequestPayload
-		err :=json.Unmarshal([]byte(activity.Meta), &payload)
-		if err != nil { fmt.Println("Error decoding meta: ", err) }
+		err := json.Unmarshal([]byte(activity.Meta), &payload)
+		if err != nil {
+			fmt.Println("Error decoding meta: ", err)
+		}
 		metas[payload.Payload.Number] = payload.Payload.Pull_request
 	}
 
@@ -69,16 +70,21 @@ func pull_request_render(activities []Activity, long_template bool) string {
 
 	if long_template {
 		_, err := tmpl.Parse(long_pr_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+		if err != nil {
+			fmt.Println("Error with activity fragment parsing. ", err)
+		}
 	} else {
 		_, err := tmpl.Parse(short_pr_template)
-		if err != nil { fmt.Println("Error with activity fragment parsing. ", err) }
+		if err != nil {
+			fmt.Println("Error with activity fragment parsing. ", err)
+		}
 	}
-	
 
 	var b bytes.Buffer
 	err := tmpl.Execute(&b, template_input)
-	if err != nil { fmt.Println("Error with activity rendering. ", err) }
-	
+	if err != nil {
+		fmt.Println("Error with activity rendering. ", err)
+	}
+
 	return b.String()
 }
