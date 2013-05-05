@@ -1,4 +1,4 @@
-# go-gitstreams
+# go-gitstreams ![travis-ci build status](https://api.travis-ci.org/justinabrahms/go-gitstreams.png)
 
 go-gitstreams is the Go portion of http://gitstreams.com/, a service
 providing daily digests of GitHub activity. This repository is
