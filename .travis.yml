@@ -1,2 +1,3 @@
 language: go
+install: echo "dependcies are checked in. Skipping install."
 script: GOPATH=$PWD:$GOPATH go test gitstreams
