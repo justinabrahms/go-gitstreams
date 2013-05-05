@@ -12,8 +12,9 @@ source. An annotated schema can be found in `schema.sql`.
 
 I'm currently interested in receiving contributions around fleshing
 out templates, reducing the repetition in the various *_render
-methods, and generally making the code more idiomatic Go. Any
-suggestions on this front are happily accepted. Anything *NOT* on this
-front will probably also be accepted. Until I've moved away from
-Django as my ORM for the closed-source portion, the schema
-(unfortunately) can't be greatly reorganized.
+methods, suggestions on testing and generally making the code more
+idiomatic Go. Any suggestions on this front are happily
+accepted. Anything *NOT* on listed will probably also be
+accepted. Until I've moved away from Django as my ORM for the
+closed-source portion, the schema (unfortunately) can't be greatly
+reorganized, though new things can be added.
