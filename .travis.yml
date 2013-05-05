@@ -1,1 +1,2 @@
 language: go
+script: GOPATH=$PWD:$GOPATH go test gitstreams
