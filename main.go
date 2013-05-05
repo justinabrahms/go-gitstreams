@@ -195,6 +195,7 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
+
 func commit_comment_render(activities []Activity, long_template bool) string { return "" }
 func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
 func member_render(activities []Activity, long_template bool) string { return "" }
@@ -251,20 +252,17 @@ func repo_to_string(db *sql.DB, repo GithubRepo, response chan string) {
 		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
 		"I": issue_render,
 		"Pb": public_render,
-		// TODO: TA (team add), FA (fork apply),
-		// TODO: DO (Download), RC (Pull Request Review Comment),
-		// TODO: Fl (Follow), G (Gist)
 	}
 
 	response <- repo_to_template(repo, activities, activity_type_to_renderer)
 }
 
 func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) {
-	// should find the streamer_userprofile_repo row for the repo
-	// / user combo, mark its last_sent as now
+	// finds the streamer_userprofile_repo row for the repo / user
+	// combo, mark its last_sent as now
 	ids := make([]string, 0)
 	for _, repo := range repos {
-		// why are they 0?
+		// TODO: why are they 0?
 		if repo.Id != 0 {
 			ids = append(ids, strconv.FormatInt(int64(repo.Id), 10))
 		}
@@ -280,14 +278,27 @@ func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) 
 	return
 }
 
-
-var user_id = flag.Int("user_id", 1, "ID of user to output.")
-var email_to = flag.String("email_to", "", "Email address of who should get the report.")
-var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
-
 // TODO: Github Users
 
+// TODO: Need to finish the following activity types: 
+// - TA (team add)
+// - FA (fork apply) 
+// - DO (Download) 
+// - RC (Pull Request Review Comment)
+// - Fl (Follow) 
+// - G (Gist)
+// - M (Member)
+// - CC (Commit Comment)
+
+var user_id = flag.Int("user_id", 1, "ID of user to output.")
+var send_email = flag.Bool("send_email", false, "Whether to send the email to the user.")
+var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
+
 func main() {
+	// Expects the following environment variables:
+	// DB_USER, DB_PASS, DB_DB  (database user, password and database)
+	// MAILGUN_API_KEY  (api key from mailgun.org)
+
 	flag.Parse()
 
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
@@ -330,7 +341,7 @@ func main() {
 		log.Fatal("No content to email.")
 	}
 
-	if len(*email_to) > 0 {
+	if len(*send_email) > 0 {
 		mg := mailgun.Open(os.Getenv("MAILGUN_API_KEY"))
 		e := &Email{
 			from: "justin@gitstreams.mailgun.org",
