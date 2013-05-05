@@ -150,6 +150,22 @@ func get_user(db *sql.DB, uid int) (u User, err error) {
 	return
 }
 
+func get_users(db *sql.DB) (users []User, err error) {
+	rows, err := db.Query(
+		"SELECT id, username, email" +
+		" FROM auth_user")
+	if err != nil { return }
+	defer rows.Close()
+
+	for rows.Next() {
+		var u User
+		err = rows.Scan(&u.Id, &u.username, &u.Email)
+		if err != nil { return }
+		users = append(users, u)
+	}
+	return
+}
+
 func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error){
 	activity_list = make([]Activity, 0)
 	rows, err := db.Query(
@@ -195,7 +211,7 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
-
+// basically need to fill these in, likely moving them all to their own files.
 func commit_comment_render(activities []Activity, long_template bool) string { return "" }
 func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
 func member_render(activities []Activity, long_template bool) string { return "" }
@@ -290,7 +306,8 @@ func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) 
 // - M (Member)
 // - CC (Commit Comment)
 
-var user_id = flag.Int("user_id", 1, "ID of user to output.")
+var user_id = flag.Int("user_id", 0, "ID of user to output.")
+var all_users = flag.Bool("all_users", false, "Whether to email all users.")
 var send_email = flag.Bool("send_email", false, "Whether to send the email to the user.")
 var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
 
@@ -307,58 +324,75 @@ func main() {
 	}
 	defer db.Close()
 
-	repos, err := get_users_repos(db, *user_id)
-	if err != nil { 
-		log.Fatalf("Error fetching user's repos. %s", err)
-	}
-
-	response_chan := make(chan string, len(repos))
-	for _, repo := range repos {
-		repo_to_string(db, repo, response_chan)
-	}
-
-	var response string
-	for num_responses := 0; num_responses < len(repos); {
-		select {
-		case r := <-response_chan:
-			num_responses++
-			response += r
-		}
-	}
-
-	// should fetch this user based on uid.
-	user, err := get_user(db, *user_id)
-	if err != nil { log.Fatalf("Couldn't return user %d. %s", *user_id, err) }
-	if *mark_read {
-		fmt.Println("Marking read.")
-		err = mark_user_repo_sent(db, user, repos)
-		if err != nil {
-			log.Fatalf("Error updating repositories as sent.")
-		}
-	}
-
-	if len(response) == 0 {
-		log.Fatal("No content to email.")
-	}
-
-	if len(*send_email) > 0 {
-		mg := mailgun.Open(os.Getenv("MAILGUN_API_KEY"))
-		e := &Email{
-			from: "justin@gitstreams.mailgun.org",
-			to: []string{user.Email},
-			subject: "Gitstreams Digest Email",
-			text: response,
-		}
-
-		id, err := mg.Send(e)
-
-		if err != nil {
-			log.Fatal("Unable to send email. ", err)
-		}
-		log.Printf("MessageId = %s for uid:%s", id, user.Id)
+	var users []User
+	if (*user_id != 0) {
+		users = make([]User, 1)
+		user, err := get_user(db, *user_id)
+		if err != nil { log.Fatalf("Couldn't return user %d. %s", *user_id, err) }
+		users[0] = user
+	} else if (*all_users) {
+		users, err = get_users(db)
+		if err != nil { log.Fatal("Couldn't fetch all users.") }
 	} else {
-		fmt.Println("Would have sent the following email.")
-		fmt.Println(response)
+		log.Fatal("You must specify either to mail all users or a specific user id.")
 	}
+
+	for _, user := range users {
+		repos, err := get_users_repos(db, user.Id)
+		if err != nil { 
+			log.Print("Error fetching user's repos. %s", err)
+			continue
+		}
+
+		response_chan := make(chan string, len(repos))
+		for _, repo := range repos {
+			repo_to_string(db, repo, response_chan)
+		}
+
+		var response string
+		for num_responses := 0; num_responses < len(repos); {
+			select {
+			case r := <-response_chan:
+				num_responses++
+				response += r
+			}
+		}
+
+
+		if *mark_read {
+			fmt.Println("Marking read.")
+			err = mark_user_repo_sent(db, user, repos)
+			if err != nil {
+				log.Print("Error updating repositories as sent.")
+				continue
+			}
+		}
+
+		if len(response) == 0 {
+			log.Print("No content to email.")
+			continue
+		}
+
+		if *send_email {
+			mg := mailgun.Open(os.Getenv("MAILGUN_API_KEY"))
+			e := &Email{
+				from: "justin@gitstreams.mailgun.org",
+				to: []string{user.Email},
+				subject: "Gitstreams Digest Email",
+				text: response,
+			}
+
+			id, err := mg.Send(e)
+
+			if err != nil {
+				log.Print("Unable to send email. ", err)
+			}
+			log.Printf("MessageId = %s for uid:%s", id, user.Id)
+		} else {
+			fmt.Println("Would have sent the following email.")
+			fmt.Println(response)
+		}
+	}
+
 	return
 }
