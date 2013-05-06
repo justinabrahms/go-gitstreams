@@ -249,12 +249,14 @@ func repoToString(db *sql.DB, repo GithubRepo, response chan string) {
 		"PR": pullRequestRender,
 		"D":  deleteRender,
 		"C":  createRender,
-		"W":  watchRender,
-		"F":  forkRender,
 		"IC": issueCommentRender,
 		"Gl": wikiRender, // Gl is for Gollum, Github's wiki thing.
 		"I":  issueRender,
 		"Pb": publicRender,
+
+		// Watches and forks for repos are WAYY too spammy.
+		// "W":  watchRender,
+		// "F":  forkRender,
 	}
 
 	response <- repoToTemplate(repo, activities, activity_type_to_renderer)
