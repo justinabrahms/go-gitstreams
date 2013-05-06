@@ -110,11 +110,11 @@ func getUserRepos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	// that the join from user <-> repo doesn't go through
 	// userprofiles.
 	rows, err := db.Query(
-		"SELECT r.id, username, project_name"+
-			" FROM streamer_repo r"+
-			" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id "+
-			" JOIN streamer_userprofile up ON up.id = upr.userprofile_id"+
-			" WHERE up.user_id = ?;", user_id)
+		`SELECT r.id, username, project_name
+	           FROM streamer_repo r
+		   JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id 
+		   JOIN streamer_userprofile up ON up.id = upr.userprofile_id
+                   WHERE up.user_id = ?;`, user_id)
 	// what's a good way to handle this not working?
 	if err != nil {
 		return nil, err
@@ -137,17 +137,17 @@ func getUserRepos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 
 func getUser(db *sql.DB, uid int) (u User, err error) {
 	row := db.QueryRow(
-		"SELECT id, username, email"+
-			" FROM auth_user"+
-			" WHERE id = ?", uid)
+		`SELECT id, username, email
+		   FROM auth_user
+		   WHERE id = ?`, uid)
 	err = row.Scan(&u.Id, &u.username, &u.Email)
 	return
 }
 
 func getUsers(db *sql.DB) (users []User, err error) {
 	rows, err := db.Query(
-		"SELECT id, username, email" +
-			" FROM auth_user")
+		`SELECT id, username, email
+		   FROM auth_user`)
 	if err != nil {
 		return
 	}
@@ -167,15 +167,15 @@ func getUsers(db *sql.DB) (users []User, err error) {
 func getRepoActivity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error) {
 	activity_list = make([]Activity, 0)
 	rows, err := db.Query(
-		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta"+
-			" FROM streamer_activity a"+
-			" JOIN streamer_repo r on r.id=a.repo_id"+
-			" JOIN streamer_githubuser ghu on ghu.id=a.user_id"+
-			" JOIN streamer_userprofile_repos upr on r.id=upr.repo_id"+
-			" WHERE r.id = ?"+
-			" AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day)"+ // don't send things more than a few days old. Think, new users who subscribe to rails/rails
-			" AND (upr.last_sent is null"+ // hasn't been sent at all
-			"   OR a.created_at > upr.last_sent)", // or hasn't been sent since we've gotten new stuff
+		`SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta
+		  FROM streamer_activity a
+		  JOIN streamer_repo r on r.id=a.repo_id
+		  JOIN streamer_githubuser ghu on ghu.id=a.user_id
+		  JOIN streamer_userprofile_repos upr on r.id=upr.repo_id
+		  WHERE r.id = ?
+		  AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day) -- don't send things more than a few days old. Think, new users who subscribe to rails/rails
+		  AND (upr.last_sent is null -- hasn't been sent at all
+		    OR a.created_at > upr.last_sent)`, // or hasn't been sent since we've gotten new stuff
 		repo.Id)
 	if err != nil {
 		return
@@ -274,9 +274,9 @@ func markUserRepoSent(db *sql.DB, user User, repos []GithubRepo) (err error) {
 	// There is likely a better way to get parameterization, but
 	// it wasn't working for me with ?'s.
 	str := fmt.Sprintf(
-		"UPDATE streamer_userprofile_repos "+
-			"SET last_sent=NOW() "+
-			"WHERE repo_id IN (%s)", strings.Join(ids, ","))
+		`UPDATE streamer_userprofile_repos
+		   SET last_sent=NOW()
+		   WHERE repo_id IN (%s)`, strings.Join(ids, ","))
 	_, err = db.Exec(str)
 	return
 }
