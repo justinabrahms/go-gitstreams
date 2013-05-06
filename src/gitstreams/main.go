@@ -103,23 +103,12 @@ func (n *NString) UnmarshalJSON(b []byte) (err error) {
 }
 
 func getUserRepos(db *sql.DB, user_id int) ([]GithubRepo, error) {
-	var repo_count int
+	// guess as to initial size. Likely very few users following < 10 repos.
+	var repos = make([]GithubRepo, 10)
 
 	// TODO(justinabrahms): Should really alter the schema such
 	// that the join from user <-> repo doesn't go through
 	// userprofiles.
-	row := db.QueryRow(
-		"SELECT count(*)"+
-			" FROM streamer_repo r"+
-			" JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id "+
-			" JOIN streamer_userprofile up ON up.id = upr.userprofile_id"+
-			" WHERE up.user_id = ?;", user_id)
-	err := row.Scan(&repo_count)
-	if err != nil {
-		return nil, err
-	}
-	var repos = make([]GithubRepo, repo_count)
-
 	rows, err := db.Query(
 		"SELECT r.id, username, project_name"+
 			" FROM streamer_repo r"+
