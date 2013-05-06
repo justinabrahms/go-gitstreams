@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+var user_id = flag.Int("user_id", 0, "ID of user to output.")
+var all_users = flag.Bool("all_users", false, "Whether to email all users.")
+var send_email = flag.Bool("send_email", false, "Whether to send the email to the user.")
+var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
+
 type User struct {
 	Id       int
 	username string
@@ -298,11 +303,6 @@ func markUserRepoSent(db *sql.DB, user User, repos []GithubRepo) (err error) {
 // - G (Gist)
 // - M (Member)
 // - CC (Commit Comment)
-
-var user_id = flag.Int("user_id", 0, "ID of user to output.")
-var all_users = flag.Bool("all_users", false, "Whether to email all users.")
-var send_email = flag.Bool("send_email", false, "Whether to send the email to the user.")
-var mark_read = flag.Bool("mark_read", true, "Whether to mark activity sent as read. False means subsequent calls will send the same info.")
 
 func main() {
 	// Expects the following environment variables:
