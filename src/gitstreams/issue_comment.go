@@ -41,7 +41,7 @@ const long_issue_comment_template = `{{ range $num, $payload := .IssueComments }
 const short_issue_comment_template = `Comments on {{ range $num, $payload := .IssueComments }}#{{$num}} {{end}}
 `
 
-func issue_comment_render(activities []Activity, long_template bool) string {
+func issueCommentRender(activities []Activity, long_template bool) string {
 	var metas = make(map[int]IssueCommentPayload, len(activities))
 	for _, activity := range activities {
 		var payload IssueCommentPayload

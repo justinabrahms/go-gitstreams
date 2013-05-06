@@ -54,7 +54,7 @@ const short_pr_template = `{{len .PullRequests}} pull requests.
 {{range $num, $pr := .PullRequests}}{{$num}} {{end}}
 `
 
-func pull_request_render(activities []Activity, long_template bool) string {
+func pullRequestRender(activities []Activity, long_template bool) string {
 	var metas = make(map[int]PullRequest, len(activities))
 	for _, activity := range activities {
 		var payload PullRequestPayload

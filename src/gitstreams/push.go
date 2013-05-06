@@ -31,7 +31,7 @@ const short_push_template = `{{ .TotalCommits }} commits. {{range .Pushes}}{{ran
 {{end}}
 `
 
-func push_render(activities []Activity, long_template bool) string {
+func pushRender(activities []Activity, long_template bool) string {
 	var metas = make([]PushMeta, len(activities))
 	var total_commits = 0
 	for i, activity := range activities {

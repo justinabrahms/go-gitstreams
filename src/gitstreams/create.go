@@ -32,7 +32,7 @@ const short_create_template = `
     Created {{len .Created}} branches/refs.
 `
 
-func create_render(activities []Activity, long_template bool) string {
+func createRender(activities []Activity, long_template bool) string {
 	var metas = make([]CreateMeta, len(activities))
 	for i, activity := range activities {
 		var payload CreatePayload

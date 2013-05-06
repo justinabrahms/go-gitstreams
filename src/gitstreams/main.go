@@ -97,7 +97,7 @@ func (n *NString) UnmarshalJSON(b []byte) (err error) {
 	return json.Unmarshal(b, (*string)(n))
 }
 
-func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
+func getUserRepos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	var repo_count int
 
 	// TODO(justinabrahms): Should really alter the schema such
@@ -141,7 +141,7 @@ func get_users_repos(db *sql.DB, user_id int) ([]GithubRepo, error) {
 	return repos, err
 }
 
-func get_user(db *sql.DB, uid int) (u User, err error) {
+func getUser(db *sql.DB, uid int) (u User, err error) {
 	row := db.QueryRow(
 		"SELECT id, username, email"+
 			" FROM auth_user"+
@@ -150,7 +150,7 @@ func get_user(db *sql.DB, uid int) (u User, err error) {
 	return
 }
 
-func get_users(db *sql.DB) (users []User, err error) {
+func getUsers(db *sql.DB) (users []User, err error) {
 	rows, err := db.Query(
 		"SELECT id, username, email" +
 			" FROM auth_user")
@@ -170,7 +170,7 @@ func get_users(db *sql.DB) (users []User, err error) {
 	return
 }
 
-func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error) {
+func getRepoActivity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error) {
 	activity_list = make([]Activity, 0)
 	rows, err := db.Query(
 		"SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta"+
@@ -214,17 +214,7 @@ func get_repo_activity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, 
 	return
 }
 
-// basically need to fill these in, likely moving them all to their own files.
-func commit_comment_render(activities []Activity, long_template bool) string       { return "" }
-func pull_request_comment_render(activities []Activity, long_template bool) string { return "" }
-func member_render(activities []Activity, long_template bool) string               { return "" }
-func download_render(activities []Activity, long_template bool) string             { return "" }
-func fork_apply_render(activities []Activity, long_template bool) string           { return "" }
-func team_add_render(activities []Activity, long_template bool) string             { return "" }
-func gist_render(activities []Activity, long_template bool) string                 { return "" }
-func follow_render(activities []Activity, long_template bool) string               { return "" }
-
-func repo_to_template(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool) string) string {
+func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool) string) string {
 	if len(activities) == 0 {
 		return ""
 	}
@@ -253,30 +243,30 @@ func repo_to_template(repo GithubRepo, activities []Activity, render_map map[str
 	return response
 }
 
-func repo_to_string(db *sql.DB, repo GithubRepo, response chan string) {
-	activities, err := get_repo_activity(db, &repo)
+func repoToString(db *sql.DB, repo GithubRepo, response chan string) {
+	activities, err := getRepoActivity(db, &repo)
 	if err != nil {
 		fmt.Println("ERR: ", err)
 		os.Exit(1)
 	}
 
 	activity_type_to_renderer := map[string]func([]Activity, bool) string{
-		"P":  push_render,
-		"PR": pull_request_render,
-		"D":  delete_render,
-		"C":  create_render,
-		"W":  watch_render,
-		"F":  fork_render,
-		"IC": issue_comment_render,
-		"Gl": wiki_render, // Gl is for Gollum, Github's wiki thing.
-		"I":  issue_render,
-		"Pb": public_render,
+		"P":  pushRender,
+		"PR": pullRequestRender,
+		"D":  deleteRender,
+		"C":  createRender,
+		"W":  watchRender,
+		"F":  forkRender,
+		"IC": issueCommentRender,
+		"Gl": wikiRender, // Gl is for Gollum, Github's wiki thing.
+		"I":  issueRender,
+		"Pb": publicRender,
 	}
 
-	response <- repo_to_template(repo, activities, activity_type_to_renderer)
+	response <- repoToTemplate(repo, activities, activity_type_to_renderer)
 }
 
-func mark_user_repo_sent(db *sql.DB, user User, repos []GithubRepo) (err error) {
+func markUserRepoSent(db *sql.DB, user User, repos []GithubRepo) (err error) {
 	// finds the streamer_userprofile_repo row for the repo / user
 	// combo, mark its last_sent as now
 	ids := make([]string, 0)
@@ -330,13 +320,13 @@ func main() {
 	var users []User
 	if *user_id != 0 {
 		users = make([]User, 1)
-		user, err := get_user(db, *user_id)
+		user, err := getUser(db, *user_id)
 		if err != nil {
 			log.Fatalf("Couldn't return user %d. %s", *user_id, err)
 		}
 		users[0] = user
 	} else if *all_users {
-		users, err = get_users(db)
+		users, err = getUsers(db)
 		if err != nil {
 			log.Fatal("Couldn't fetch all users.")
 		}
@@ -345,7 +335,7 @@ func main() {
 	}
 
 	for _, user := range users {
-		repos, err := get_users_repos(db, user.Id)
+		repos, err := getUserRepos(db, user.Id)
 		if err != nil {
 			log.Print("Error fetching user's repos. %s", err)
 			continue
@@ -353,7 +343,7 @@ func main() {
 
 		response_chan := make(chan string, len(repos))
 		for _, repo := range repos {
-			repo_to_string(db, repo, response_chan)
+			repoToString(db, repo, response_chan)
 		}
 
 		var response string
@@ -367,7 +357,7 @@ func main() {
 
 		if *mark_read {
 			fmt.Println("Marking read.")
-			err = mark_user_repo_sent(db, user, repos)
+			err = markUserRepoSent(db, user, repos)
 			if err != nil {
 				log.Print("Error updating repositories as sent.")
 				continue

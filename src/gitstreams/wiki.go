@@ -35,7 +35,7 @@ const long_wiki_template = `{{ range .Wikis }}    {{ .Actor.Login }} {{ range $i
 const short_wiki_template = `{{ range .Wikis }}{{with .Payload}}    Updated pages: {{range $index, $page := .Pages}}{{if $index}}, {{end}}{{ $page.Title }}{{end}}{{end}}{{end}}
 `
 
-func wiki_render(activities []Activity, long_template bool) string {
+func wikiRender(activities []Activity, long_template bool) string {
 	var metas = make([]WikiPayload, len(activities))
 	for i, activity := range activities {
 		var payload WikiPayload

@@ -30,7 +30,7 @@ const short_watch_template = `
     {{len .Watched}} watch events.
 `
 
-func watch_render(activities []Activity, long_template bool) string {
+func watchRender(activities []Activity, long_template bool) string {
 	var metas = make([]WatchPayload, len(activities))
 	for i, activity := range activities {
 		var payload WatchPayload

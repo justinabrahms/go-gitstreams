@@ -27,7 +27,7 @@ const long_fork_template = `{{range .Forks}}    {{.Actor.Login}} forked to {{.Pa
 const short_fork_template = `{{len .Forks}} new forks
 `
 
-func fork_render(activities []Activity, long_template bool) string {
+func forkRender(activities []Activity, long_template bool) string {
 	var metas = make([]ForkPayload, len(activities))
 	for i, activity := range activities {
 		var payload ForkPayload

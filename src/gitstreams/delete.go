@@ -25,7 +25,7 @@ const long_delete_template = `{{range .Deleted}}    Deleted {{.Ref_type}} {{.Ref
 {{end}}`
 const short_delete_template = `{{len .Deleted}} deleted branches/refs.`
 
-func delete_render(activities []Activity, long_template bool) string {
+func deleteRender(activities []Activity, long_template bool) string {
 	var metas = make([]DeleteMeta, len(activities))
 	for i, activity := range activities {
 		var payload DeletePayload

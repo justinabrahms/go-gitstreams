@@ -36,7 +36,7 @@ const long_issue_template = `{{range .Issues}}    {{.Actor.Login}} {{.Payload.Ac
 const short_issue_template = `    {{len .Issues}} new issues: {{ range $i, $issue := .Issues }}{{if $i}}, {{end}}#{{$issue.Payload.Issue.Number}}{{end}}
 `
 
-func issue_render(activities []Activity, long_template bool) string {
+func issueRender(activities []Activity, long_template bool) string {
 	var metas = make([]IssuePayload, len(activities))
 	for i, activity := range activities {
 		var payload IssuePayload

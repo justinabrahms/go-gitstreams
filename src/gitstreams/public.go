@@ -24,7 +24,7 @@ const long_public_template = `{{range .Payloads}}{{.Repo.Name}} was open sourced
 
 const short_public_template = long_public_template
 
-func public_render(activities []Activity, long_template bool) string {
+func publicRender(activities []Activity, long_template bool) string {
 	var metas = make([]PublicPayload, len(activities))
 	for i, activity := range activities {
 		var payload PublicPayload
