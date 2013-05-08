@@ -175,7 +175,8 @@ func getRepoActivity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, er
 		  WHERE r.id = ?
 		  AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day) -- don't send things more than a few days old. Think, new users who subscribe to rails/rails
 		  AND (upr.last_sent is null -- hasn't been sent at all
-		    OR a.created_at > upr.last_sent)`, // or hasn't been sent since we've gotten new stuff
+		    OR a.created_at > upr.last_sent) --  or hasn't been sent since we've gotten new stuff
+                  GROUP BY a.id`, // and unique-ify based on activity id to prevent dupes.
 		repo.Id)
 	if err != nil {
 		return
