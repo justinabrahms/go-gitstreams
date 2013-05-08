@@ -235,7 +235,7 @@ func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[strin
 		}
 	}
 	if len(response) > 0 {
-		response = fmt.Sprintf("%s:\n%s", repo.FullName(), response)
+		response = fmt.Sprintf("\n\n%s:\n%s", repo.FullName(), response)
 	}
 	return
 	
