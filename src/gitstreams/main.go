@@ -209,7 +209,7 @@ func getRepoActivity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, er
 	return
 }
 
-func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool) string) string {
+func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool) string) (response string) {
 	if len(activities) == 0 {
 		return ""
 	}
@@ -226,7 +226,6 @@ func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[strin
 	}
 
 	// activity_map: activity_type => []activity
-	var response = fmt.Sprintf("%s:\n", repo.FullName())
 	for activity_type, activities := range activity_map {
 		fn, ok := render_map[activity_type]
 		if ok {
@@ -235,7 +234,11 @@ func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[strin
 			log.Print("Not sure how to render activites of type ", activity_type)
 		}
 	}
-	return response
+	if len(response) > 0 {
+		response = fmt.Sprintf("%s:\n%s", repo.FullName(), response)
+	}
+	return
+	
 }
 
 func repoToString(db *sql.DB, repo GithubRepo, response chan string) {
