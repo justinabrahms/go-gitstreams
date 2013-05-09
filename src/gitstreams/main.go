@@ -323,7 +323,7 @@ func main() {
 	} else if *all_users {
 		users, err = getUsers(db)
 		if err != nil {
-			log.Fatal("Couldn't fetch all users.")
+			log.Fatal("Couldn't fetch all users. %s", err)
 		}
 	} else {
 		log.Fatal("You must specify either to mail all users or a specific user id.")
