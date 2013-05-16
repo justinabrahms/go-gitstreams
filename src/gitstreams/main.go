@@ -1,15 +1,12 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	mailgun "github.com/riobard/go-mailgun"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -102,112 +99,6 @@ func (n *NString) UnmarshalJSON(b []byte) (err error) {
 	return json.Unmarshal(b, (*string)(n))
 }
 
-func getUserRepos(db *sql.DB, user_id int) ([]GithubRepo, error) {
-	// guess as to initial size. Likely very few users following < 10 repos.
-	var repos = make([]GithubRepo, 10)
-
-	// TODO(justinabrahms): Should really alter the schema such
-	// that the join from user <-> repo doesn't go through
-	// userprofiles.
-	rows, err := db.Query(
-		`SELECT r.id, username, project_name
-	           FROM streamer_repo r
-		   JOIN streamer_userprofile_repos upr ON upr.repo_id = r.id 
-		   JOIN streamer_userprofile up ON up.id = upr.userprofile_id
-                   WHERE up.user_id = ?;`, user_id)
-	// what's a good way to handle this not working?
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var username, project_name string
-	var pk int
-	for rows.Next() {
-		err = rows.Scan(&pk, &username, &project_name)
-		if err != nil {
-			fmt.Println("Error!: ", err)
-		}
-		var repo = GithubRepo{pk, username, project_name}
-		repos = append(repos, repo)
-	}
-
-	return repos, err
-}
-
-func getUser(db *sql.DB, uid int) (u User, err error) {
-	row := db.QueryRow(
-		`SELECT id, username, email
-		   FROM auth_user
-		   WHERE id = ?`, uid)
-	err = row.Scan(&u.Id, &u.username, &u.Email)
-	return
-}
-
-func getUsers(db *sql.DB) (users []User, err error) {
-	rows, err := db.Query(
-		`SELECT id, username, email
-		   FROM auth_user`)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var u User
-		err = rows.Scan(&u.Id, &u.username, &u.Email)
-		if err != nil {
-			return
-		}
-		users = append(users, u)
-	}
-	return
-}
-
-func getRepoActivity(db *sql.DB, repo *GithubRepo) (activity_list []Activity, err error) {
-	activity_list = make([]Activity, 0)
-	rows, err := db.Query(
-		`SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta
-		  FROM streamer_activity a
-		  JOIN streamer_repo r on r.id=a.repo_id
-		  JOIN streamer_githubuser ghu on ghu.id=a.user_id
-		  JOIN streamer_userprofile_repos upr on r.id=upr.repo_id
-		  WHERE r.id = ?
-		  AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day) -- don't send things more than a few days old. Think, new users who subscribe to rails/rails
-		  AND (upr.last_sent is null -- hasn't been sent at all
-		    OR a.created_at > upr.last_sent) --  or hasn't been sent since we've gotten new stuff
-                  GROUP BY a.id`, // and unique-ify based on activity id to prevent dupes.
-		repo.Id)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	var (
-		pk, github_id, repo_id                                              int
-		activity_type, username, repo_project, repo_user, meta, created_str string
-		created_at                                                          time.Time
-	)
-
-	for rows.Next() {
-		err = rows.Scan(&pk, &github_id, &activity_type, &created_str, &username, &repo_user, &repo_project, &meta)
-		if err != nil {
-			fmt.Println("ERR: ", err)
-		}
-
-		created_at, err = time.Parse("2006-01-02 15:04:05", created_str)
-		if err != nil {
-			fmt.Println("Can't parse the format of ", created_str)
-			return nil, err
-		}
-
-		activity_list = append(activity_list,
-			Activity{pk, github_id, activity_type, created_at, username,
-				GithubRepo{repo_id, repo_user, repo_project}, meta})
-	}
-
-	return
-}
 
 func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[string]func([]Activity, bool) string) (response string) {
 	if len(activities) == 0 {
@@ -265,28 +156,6 @@ func repoToString(db *sql.DB, repo GithubRepo, response chan string) {
 
 	response <- repoToTemplate(repo, activities, activity_type_to_renderer)
 }
-
-func markUserRepoSent(db *sql.DB, user User, repos []GithubRepo) (err error) {
-	// finds the streamer_userprofile_repo row for the repo / user
-	// combo, mark its last_sent as now
-	ids := make([]string, 0)
-	for _, repo := range repos {
-		// TODO: why are they 0?
-		if repo.Id != 0 {
-			ids = append(ids, strconv.FormatInt(int64(repo.Id), 10))
-		}
-	}
-
-	// There is likely a better way to get parameterization, but
-	// it wasn't working for me with ?'s.
-	str := fmt.Sprintf(
-		`UPDATE streamer_userprofile_repos
-		   SET last_sent=NOW()
-		   WHERE repo_id IN (%s)`, strings.Join(ids, ","))
-	_, err = db.Exec(str)
-	return
-}
-
 // TODO: Github Users
 
 // TODO: Need to finish the following activity types: 
@@ -303,25 +172,24 @@ func main() {
 	// Expects the following environment variables:
 	// DB_USER, DB_PASS, DB_DB  (database user, password and database)
 	// MAILGUN_API_KEY  (api key from mailgun.org)
-
 	flag.Parse()
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB")))
+	c, err := NewDbController(os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_DB"))
 	if err != nil {
 		log.Fatalf("Unable to connect to mysql. ", err)
 	}
-	defer db.Close()
+	defer c.Close()
 
 	var users []User
 	if *user_id != 0 {
 		users = make([]User, 1)
-		user, err := getUser(db, *user_id)
+		user, err := c.getUser(*user_id)
 		if err != nil {
 			log.Fatalf("Couldn't return user %d. %s", *user_id, err)
 		}
 		users[0] = user
 	} else if *all_users {
-		users, err = getUsers(db)
+		users, err = c.getUsers()
 		if err != nil {
 			log.Fatal("Couldn't fetch all users. %s", err)
 		}
@@ -330,7 +198,7 @@ func main() {
 	}
 
 	for _, user := range users {
-		repos, err := getUserRepos(db, user.Id)
+		repos, err := c.getUserRepos(user.Id)
 		if err != nil {
 			log.Print("Error fetching user's repos. %s", err)
 			continue
@@ -352,7 +220,7 @@ func main() {
 
 		if *mark_read {
 			fmt.Println("Marking read.")
-			err = markUserRepoSent(db, user, repos)
+			err = c.markUserRepoSent(user, repos)
 			if err != nil {
 				log.Print("Error updating repositories as sent.")
 				continue
