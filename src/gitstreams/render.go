@@ -38,7 +38,7 @@ func repoToTemplate(repo GithubRepo, activities []Activity, render_map map[strin
 }
 
 func repoToString(db *DbController, repo GithubRepo, userId int, response chan string) {
-	activities, err := db.getRepoActivity(&repo, userId)
+	activities, err := db.GetRepoActivity(&repo, userId)
 	if err != nil {
 		log.Print("ERR: ", err)
 	}

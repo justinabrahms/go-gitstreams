@@ -126,13 +126,13 @@ func main() {
 	var users []User
 	if *user_id != 0 {
 		users = make([]User, 1)
-		user, err := c.getUser(*user_id)
+		user, err := c.GetUser(*user_id)
 		if err != nil {
 			log.Fatalf("Couldn't return user %d. %s", *user_id, err)
 		}
 		users[0] = user
 	} else if *all_users {
-		users, err = c.getUsers()
+		users, err = c.GetUsers()
 		if err != nil {
 			log.Fatal("Couldn't fetch all users. %s", err)
 		}
@@ -141,7 +141,7 @@ func main() {
 	}
 
 	for _, user := range users {
-		repos, err := c.getUserRepos(user.Id)
+		repos, err := c.GetUserRepos(user.Id)
 		if err != nil {
 			log.Print("Error fetching user's repos. %s", err)
 			continue
@@ -163,7 +163,7 @@ func main() {
 
 		if *mark_read {
 			fmt.Println("Marking read.")
-			err = c.markUserRepoSent(user, repos)
+			err = c.MarkUserRepoSent(user, repos)
 			if err != nil {
 				log.Print("Error updating repositories as sent.")
 				continue

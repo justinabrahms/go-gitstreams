@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	// _ "github.com/go-sql-driver/mysql"
 	_ "github.com/bmizerany/pq"
 	"log"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 )
 
 func NewDbController(user, pass, database string) (c DbController, err error) {
-	// db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8", user, pass, database))
 	db, err := sql.Open("postgres", fmt.Sprintf("user=gitstreams password=%s dbname=%s sslmode=disable", pass, database))
 	if err == nil {
 		c = DbController{db}
@@ -28,7 +26,7 @@ func (d *DbController) Close() {
 	d.db.Close()
 }
 
-func (d *DbController) getUser(uid int) (u User, err error) {
+func (d *DbController) GetUser(uid int) (u User, err error) {
 	row := d.db.QueryRow(
 		`SELECT id, username, email
 		   FROM auth_user
@@ -37,7 +35,7 @@ func (d *DbController) getUser(uid int) (u User, err error) {
 	return
 }
 
-func (d *DbController) getUsers() (users []User, err error) {
+func (d *DbController) GetUsers() (users []User, err error) {
 	rows, err := d.db.Query(
 		`SELECT id, username, email
 		   FROM auth_user;`)
@@ -57,7 +55,7 @@ func (d *DbController) getUsers() (users []User, err error) {
 	return
 }
 
-func (d *DbController) getUserRepos(user_id int) ([]GithubRepo, error) {
+func (d *DbController) GetUserRepos(user_id int) ([]GithubRepo, error) {
 	// guess as to initial size. Likely very few users following < 10 repos.
 	var repos = make([]GithubRepo, 10)
 
@@ -90,7 +88,7 @@ func (d *DbController) getUserRepos(user_id int) ([]GithubRepo, error) {
 	return repos, err
 }
 
-func (d *DbController) getRepoActivity(repo *GithubRepo, userId int) (activity_list []Activity, err error) {
+func (d *DbController) GetRepoActivity(repo *GithubRepo, userId int) (activity_list []Activity, err error) {
 	activity_list = make([]Activity, 0)
 	rows, err := d.db.Query(
 		`SELECT a.id, a.event_id, a.type, a.created_at, ghu.name, r.username, r.project_name, meta
@@ -130,7 +128,7 @@ func (d *DbController) getRepoActivity(repo *GithubRepo, userId int) (activity_l
 	return
 }
 
-func (d *DbController) markUserRepoSent(user User, repos []GithubRepo) (err error) {
+func (d *DbController) MarkUserRepoSent(user User, repos []GithubRepo) (err error) {
 	// finds the streamer_userprofile_repo row for the repo / user
 	// combo, mark its last_sent as now
 	ids := make([]string, 0)
