@@ -436,7 +436,7 @@ ALTER TABLE public.streamer_activity_id_seq OWNER TO gitstreams;
 CREATE TABLE streamer_activity (
     id integer DEFAULT nextval('streamer_activity_id_seq'::regclass) NOT NULL,
     type character varying(2) NOT NULL,
-    created_at timestamp without time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL,
     repo_id integer,
     user_id integer,
     event_id bigint NOT NULL,
@@ -467,7 +467,7 @@ ALTER TABLE public.streamer_githubuser_id_seq OWNER TO gitstreams;
 CREATE TABLE streamer_githubuser (
     id integer DEFAULT nextval('streamer_githubuser_id_seq'::regclass) NOT NULL,
     name character varying(255) NOT NULL,
-    last_synced timestamp without time zone
+    last_synced timestamp with time zone
 );
 
 
@@ -495,7 +495,7 @@ CREATE TABLE streamer_repo (
     id integer DEFAULT nextval('streamer_repo_id_seq'::regclass) NOT NULL,
     username character varying(255) NOT NULL,
     project_name character varying(255) NOT NULL,
-    last_synced timestamp without time zone,
+    last_synced timestamp with time zone,
     description character varying(255)
 );
 
@@ -524,7 +524,7 @@ CREATE TABLE streamer_userprofile (
     id integer DEFAULT nextval('streamer_userprofile_id_seq'::regclass) NOT NULL,
     user_id integer NOT NULL,
     max_time_interval_between_emails character varying(1) NOT NULL,
-    last_email_received timestamp without time zone,
+    last_email_received timestamp with time zone,
     waitlisted boolean DEFAULT true,
     include_starred_repos boolean DEFAULT true
 );
@@ -554,7 +554,7 @@ CREATE TABLE streamer_userprofile_followed (
     id integer DEFAULT nextval('streamer_userprofile_followed_id_seq'::regclass) NOT NULL,
     userprofile_id integer NOT NULL,
     githubuser_id integer NOT NULL,
-    last_sent timestamp without time zone
+    last_sent timestamp with time zone
 );
 
 
@@ -582,7 +582,7 @@ CREATE TABLE streamer_userprofile_repos (
     id integer DEFAULT nextval('streamer_userprofile_repos_id_seq'::regclass) NOT NULL,
     userprofile_id integer NOT NULL,
     repo_id integer NOT NULL,
-    last_sent timestamp without time zone
+    last_sent timestamp with time zone
 );
 
 
