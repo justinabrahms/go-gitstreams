@@ -165,7 +165,7 @@ func main() {
 			fmt.Println("Marking read.")
 			err = c.MarkUserRepoSent(user, repos)
 			if err != nil {
-				log.Print("Error updating repositories as sent.")
+				log.Print("Error updating repositories as sent. ", err)
 				continue
 			}
 		}
@@ -189,7 +189,7 @@ func main() {
 			if err != nil {
 				log.Print("Unable to send email. ", err)
 			}
-			log.Printf("MessageId = %s for uid:%s", id, user.Id)
+			log.Printf("MessageId = %s for uid:%d", id, user.Id)
 		} else {
 			fmt.Println("Would have sent the following email.")
 			fmt.Println(response)
