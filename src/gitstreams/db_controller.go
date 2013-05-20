@@ -139,13 +139,11 @@ func (d *DbController) MarkUserRepoSent(user User, repos []GithubRepo) (err erro
 		}
 	}
 
-	str := fmt.Sprintf(
+	_, err = d.db.Exec(
 		`UPDATE streamer_userprofile_repos
 		   SET last_sent=NOW()
                    WHERE userprofile_id = (
-                     SELECT id FROM streamer_userprofile where id=%s )
-		   AND repo_id IN ( %s );`, user.Id, strings.Join(ids, ","))
-	_, err = d.db.Exec(str)
-
+                     SELECT id FROM streamer_userprofile where id=$1 )
+		   AND repo_id IN ( $2 );`, user.Id, ids)
 	return
 }
