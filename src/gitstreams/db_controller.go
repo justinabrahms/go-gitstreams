@@ -99,7 +99,7 @@ func (d *DbController) GetRepoActivity(repo *GithubRepo, userId int) (activity_l
                   JOIN streamer_userprofile up on up.id=upr.userprofile_id
 		  WHERE r.id = $1
                   AND up.user_id = $2
-		  -- AND a.created_at > DATE_SUB(NOW(), INTERVAL 5 day) -- don't send things more than a few days old. Think, new users who subscribe to rails/rails
+		  AND a.created_at > (NOW() - INTERVAL '5 days') -- don't send things more than a few days old. Think, new users who subscribe to rails/rails
 		  AND (upr.last_sent is null -- hasn't been sent at all
 		    OR a.created_at > upr.last_sent); --  or hasn't been sent since we've gotten new stuff`,
 		repo.Id, userId)
