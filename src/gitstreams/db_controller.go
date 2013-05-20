@@ -11,7 +11,7 @@ import (
 )
 
 func NewDbController(user, pass, database string) (c DbController, err error) {
-	db, err := sql.Open("postgres", fmt.Sprintf("user=%s password=%s dbname=%s host=localhost sslmode=enable", user, pass, database))
+	db, err := sql.Open("postgres", fmt.Sprintf("user=%s password=%s dbname=%s host=localhost sslmode=disable", user, pass, database))
 	if err == nil {
 		c = DbController{db}
 	}
