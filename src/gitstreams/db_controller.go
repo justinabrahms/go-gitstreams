@@ -139,13 +139,11 @@ func (d *DbController) MarkUserRepoSent(user User, repos []GithubRepo) (err erro
 		}
 	}
 
-	// There is likely a better way to get parameterization, but
-	// it wasn't working for me with ?'s.
 	_, err = d.db.Exec(
 		`UPDATE streamer_userprofile_repos
 		   SET last_sent=NOW()
                    WHERE userprofile_id = (
-                     SELECT id FROM streamer_userprofile where id=$1)
-		   AND repo_id IN ($2)`, user.Id, strings.Join(ids, ","))
+                     SELECT id FROM streamer_userprofile where id=$1 )
+		   AND repo_id IN ( $2 );`, user.Id, strings.Join(ids, ","))
 	return
 }
