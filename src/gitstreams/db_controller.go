@@ -144,7 +144,8 @@ func (d *DbController) MarkUserRepoSent(user User, repos []GithubRepo) (err erro
 	_, err = d.db.Exec(
 		`UPDATE streamer_userprofile_repos
 		   SET last_sent=NOW()
-                   WHERE user_id = $1
+                   WHERE userprofile_id = (
+                     SELECT id FROM streamer_userprofile where id=$1)
 		   AND repo_id IN ($2)`, user.Id, strings.Join(ids, ","))
 	return
 }
