@@ -21,21 +21,54 @@ func initTestDb(t *testing.T) *sql.DB {
 	return db
 }
 
+func make_user(id int, username, email string, db *sql.DB, t *testing.T) {
+	_, err := db.Exec(`INSERT INTO auth_user VALUES (
+                   $1, $2,
+                   'first', 'last', 
+                   $3, 'pass', 
+                   TRUE, TRUE, TRUE, now(), now()
+                 )`, id, username, email)
+	if err != nil {
+		t.Fatal("Unable to create user.", err)
+	}
+}
+
+func make_repo(id int, user, project string, db *sql.DB, t *testing.T) {
+	_, err := db.Exec(`INSERT INTO streamer_repo VALUES (
+                   $1, $2, $3, NULL, NULL
+                 )`, id, user, project)
+	if err != nil {
+		t.Fatal("Unable to create repo.", err)
+	}
+}
+
+func make_userprofile(id, uid int, time_interval string, db *sql.DB, t *testing.T) {
+	_, err := db.Exec(`INSERT INTO streamer_userprofile
+                 (id, user_id, max_time_interval_between_emails) VALUES (
+                   $1, $2, $3
+                 )`, id, uid, time_interval)
+	if err != nil {
+		t.Fatal("Unable to create userprofile.", err)
+	}
+}
+
+func make_userprofile_repo(id, userprofile_id, repo_id int, db *sql.DB, t *testing.T) {
+	_, err := db.Exec(`INSERT INTO streamer_userprofile_repos
+                 (id, userprofile_id, repo_id) VALUES (
+                   $1, $2, $3
+                 )`, id, userprofile_id, repo_id)
+	if err != nil {
+		t.Fatal("Unable to create userprofile_repo.", err)
+	}
+}
+
 func TestGetUser_Exists(t *testing.T) {
 	db := initTestDb(t)
 	dbc := DbController{db}
 	defer dbc.Close()
 
-	_, err := db.Exec(`INSERT INTO auth_user VALUES (
-                   1, 'username', 
-                   'first', 'last', 
-                   'em@a.il', 'pass', 
-                   TRUE, TRUE, TRUE, now(), now()
-                 )`)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer db.Exec("DELETE from auth_user")
+	make_user(1, "username", "em@a.il", db, t)
 
 	u, err := dbc.GetUser(1)
 	if err != nil {
@@ -44,21 +77,55 @@ func TestGetUser_Exists(t *testing.T) {
 
 	if u.Id != 1 {
 		t.Fatal("Incorrect user id.")
+		return
 	}
 	if u.username != "username" {
 		t.Fatal("Incorrect username.")
+		return
 	}
 	if u.Email != "em@a.il" {
 		t.Fatal("Incorrect email.")
+		return
 	}
 }
 
-func testGetUser_NoExists(t *testing.T) {
+func TestGetUser_NoExists(t *testing.T) {
+	db := initTestDb(t)
+	dbc := DbController{db}
+	defer dbc.Close()
 
+	_, err := dbc.GetUser(1)
+	if err == nil {
+		t.Fatal("No error when accessing invalid user id.")
+		return
+	}
 }
 
-func testGetUserRepos_None(t *testing.T) {
+func TestGetUserRepos_None(t *testing.T) {
+	db := initTestDb(t)
+	dbc := DbController{db}
+	defer dbc.Close()
+	uid := 1
 
+	defer db.Exec("DELETE FROM auth_user;")
+	make_user(uid, "username", "em@a.il", db, t)
+	defer db.Exec("DELETE FROM streamer_userprofile;")
+	make_userprofile(2, uid, "D", db, t) // Daily, should really be enum or something.
+	defer db.Exec("DELETE FROM streamer_repo;")
+	make_repo(3, "user", "repo", db, t)
+	defer db.Exec("DELETE FROM streamer_userprofile_repos;")
+	make_userprofile_repo(4, 2, 3, db, t)
+
+	ur, err := dbc.GetUserRepos(uid)
+	if err != nil {
+		t.Fatal("Can't get user's repos.", err)
+		return
+	}
+	if len(ur) != 1 {
+		fmt.Println(ur)
+		t.Fatal("Got user's repos, but expected len 1, but got ", len(ur))
+		return
+	}
 }
 
 func testGetUserRepos_One(t *testing.T) {
