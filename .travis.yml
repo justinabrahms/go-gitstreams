@@ -4,5 +4,6 @@ env:
 before_script:
   - psql -c 'create database test_gitstreams;' -U postgres
   - psql -U postgres test_gitstreams < $TRAVIS_BUILD_DIR/schema.sql
+  - export GOPATH=$TRAVIS_BUILD_DIR:$GOPATH
 install: echo "dependencies are checked in. Skipping install."
 script: DB_USER=postgres DB_TEST_DB=test_gitstreams GOPATH=$PWD:$GOPATH go test gitstreams
