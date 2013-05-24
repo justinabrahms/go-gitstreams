@@ -113,6 +113,29 @@ func TestGetUserRepos_None(t *testing.T) {
 	make_userprofile(2, uid, "D", db, t) // Daily, should really be enum or something.
 	defer db.Exec("DELETE FROM streamer_repo;")
 	make_repo(3, "user", "repo", db, t)
+
+	ur, err := dbc.GetUserRepos(uid)
+	if err != nil {
+		t.Fatal("Can't get user's repos.", err)
+	}
+	if len(ur) != 0 {
+		fmt.Println(ur)
+		t.Fatal("Got user's repos, but expected len 0, but got ", len(ur))
+	}
+}
+
+func testGetUserRepos_One(t *testing.T) {
+	db := initTestDb(t)
+	dbc := DbController{db}
+	defer dbc.Close()
+	uid := 1
+
+	defer db.Exec("DELETE FROM auth_user;")
+	make_user(uid, "username", "em@a.il", db, t)
+	defer db.Exec("DELETE FROM streamer_userprofile;")
+	make_userprofile(2, uid, "D", db, t) // Daily, should really be enum or something.
+	defer db.Exec("DELETE FROM streamer_repo;")
+	make_repo(3, "user", "repo", db, t)
 	defer db.Exec("DELETE FROM streamer_userprofile_repos;")
 	make_userprofile_repo(4, 2, 3, db, t)
 
@@ -126,9 +149,6 @@ func TestGetUserRepos_None(t *testing.T) {
 		t.Fatal("Got user's repos, but expected len 1, but got ", len(ur))
 		return
 	}
-}
-
-func testGetUserRepos_One(t *testing.T) {
 }
 
 func testGetUserRepos_Many(t *testing.T) {
