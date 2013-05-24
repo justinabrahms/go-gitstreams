@@ -57,7 +57,7 @@ func (d *DbController) GetUsers() (users []User, err error) {
 
 func (d *DbController) GetUserRepos(user_id int) ([]GithubRepo, error) {
 	// guess as to initial size. Likely very few users following < 10 repos.
-	var repos = make([]GithubRepo, 10)
+	var repos = make([]GithubRepo, 0)
 
 	// TODO(justinabrahms): Should really alter the schema such
 	// that the join from user <-> repo doesn't go through
