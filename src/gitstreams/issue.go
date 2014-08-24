@@ -8,8 +8,16 @@ import (
 	"text/template"
 )
 
+type ActivityIssue_Test struct {
+	Payload []IssuePayload
+}
+
 type ActivityIssue struct {
 	Issues []IssuePayload
+}
+
+func (ai ActivityIssue) GetPayload() []interface{} {
+	return ai.Issues
 }
 
 type Issue struct {

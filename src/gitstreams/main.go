@@ -35,7 +35,7 @@ type GithubRepo struct {
 	RepoName string // should probably be Name
 }
 
-func (g *GithubRepo) FullName() string {
+func (g *GithubRepo) String() string {
 	return fmt.Sprintf("%s/%s", g.User, g.RepoName)
 }
 
@@ -46,7 +46,7 @@ type GithubApiRepo struct {
 	Description NString
 }
 
-func (g *GithubApiRepo) FullName() string {
+func (g *GithubApiRepo) String() string {
 	return fmt.Sprintf("%s/%s", g.Owner.Login, g.Name)
 }
 

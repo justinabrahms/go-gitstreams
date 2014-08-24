@@ -129,7 +129,7 @@ func (d *DbController) GetRepoActivity(repo *GithubRepo, userId int) (activity_l
 }
 
 func (d *DbController) MarkUserRepoSent(user User, repos []GithubRepo) (err error) {
-	// finds the streamer_userprofile_repo row for the repo / user
+	// finds he streamer_userprofile_repo row for the repo / user
 	// combo, mark its last_sent as now
 	ids := make([]string, 0)
 	for _, repo := range repos {

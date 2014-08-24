@@ -43,7 +43,6 @@ func wikiRender(activities []Activity, long_template bool) string {
 		if err != nil {
 			fmt.Println("Error decoding meta: ", err)
 		}
-
 		metas[i] = payload
 	}
 

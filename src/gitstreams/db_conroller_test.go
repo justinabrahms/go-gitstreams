@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 func initTestDb(t *testing.T) *sql.DB {
@@ -152,10 +153,57 @@ func testGetUserRepos_One(t *testing.T) {
 }
 
 func testGetUserRepos_Many(t *testing.T) {
+
+}
+
+func make_activity(activity_id, repo_id, user_id int, created_at time.Time, db *sql.DB, t *testing.T) {
+	event_id := 9
+	meta := "{\"meta_here\":9}"
+	_, err := db.Exec(`INSERT INTO streamer_activity
+                 (id, type, created_at, repo_id, user_id, event_id, meta) VALUE (
+                   $1, 'P', NOW(), $2, $3, $4, $5
+                 )`, activity_id, repo_id, user_id, event_id, meta)
+	if err != nil {
+		t.Fatal("Unable to create activity.", err)
+	}
+
 }
 
 func testGetRepoActivity_OtherRepo(t *testing.T) {
+	db := initTestDb(t)
+	dbc := DbController{db}
+	defer dbc.Close()
+	user_id := 1
+	profile_id := 2
+	repo_id := 3
+	profile_repo_id := 4
 
+	defer db.Exec("DELETE FROM auth_user;")
+	make_user(user_id, "username", "em@a.il", db, t)
+	defer db.Exec("DELETE FROM streamer_userprofile;")
+	make_userprofile(profile_id, user_id, "D", db, t) // Daily, should really be enum or something.
+	defer db.Exec("DELETE FROM streamer_repo;")
+	make_repo(repo_id, "user", "repo", db, t)
+	defer db.Exec("DELETE FROM streamer_userprofile_repos;")
+	make_userprofile_repo(profile_repo_id, profile_id, repo_id, db, t)
+
+	defer db.Exec("DELETE FROM streamer_activity;")
+	activity_id := 5
+	d, _ := time.ParseDuration("-144h")
+	created_at := time.Now().Add(d) // 6 days ago
+	make_activity(activity_id, repo_id, user_id, created_at, db, t)
+
+	ghr := GithubRepo{repo_id, "U", "R"}
+	ur, err := dbc.GetRepoActivity(&ghr, user_id)
+	if err != nil {
+		t.Fatal("Can't get user's activity.", err)
+		return
+	}
+	if len(ur) != 0 {
+		fmt.Println(ur)
+		t.Fatal("Got user's activity, but expected len 0, but got ", len(ur))
+		return
+	}
 }
 
 func testGetRepoActivity_OtherUser(t *testing.T) {
